@@ -1,26 +1,25 @@
 import { Navigate } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth, type Perfil } from "../contexts/AuthContext";
 import type { JSX } from "react/jsx-runtime";
+import { Carregando } from "../components/Campos";
 
 interface Props {
   children: JSX.Element;
-  allowedRoles: string[];
+  allowedRoles?: Perfil[];
 }
 
-export default function ProtectedRoute({
-  children,
-  allowedRoles,
-}: Props) {
+/** Bloqueio de rota na interface (o backend também bloqueia: RNF02). */
+export default function ProtectedRoute({ children, allowedRoles }: Props) {
   const { user, loading } = useAuth();
 
-  if (loading) return null;
+  if (loading) return <Carregando texto="Verificando sua sessão..." />;
 
   if (!user) {
-    return <Navigate to="/" />;
+    return <Navigate to="/login" replace />;
   }
 
-  if (!allowedRoles.includes(user.tipo)) {
-    return <Navigate to="/" />;
+  if (allowedRoles && !allowedRoles.includes(user.tipo)) {
+    return <Navigate to="/" replace />;
   }
 
   return children;

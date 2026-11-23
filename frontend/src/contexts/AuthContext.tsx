@@ -1,67 +1,70 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import axios from "axios";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { api, TOKEN_KEY } from "../services/api";
 
-type User = {
-  id: number;
+export type Perfil = "admin_sistema" | "admin_escolar" | "prof" | "responsavel";
+
+export type User = {
+  id: string;
+  nome: string;
   email: string;
-  tipo: string;
+  tipo: Perfil;
+  escolaId: string | null;
+  perfilId: string | null;
+  escola?: { id: string; nome: string; setorEducacional: string } | null;
 };
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
-  login: (token: string) => Promise<void>;
+  login: (token: string) => Promise<User>;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+/** Rota inicial de cada perfil. */
+export const ROTA_INICIAL: Record<Perfil, string> = {
+  admin_sistema: "/admin-sistema",
+  admin_escolar: "/admin-escolar/dashboard",
+  prof: "/prof/dashboard",
+  responsavel: "/responsavel",
+};
+
+/** O usuário é identificado pelo token + GET /auth/me (T11), nunca por um e-mail salvo no navegador. */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function login(token: string) {
-    localStorage.setItem("token", token);
-
-    const response = await axios.get("http://localhost:3000/auth/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
+    localStorage.setItem(TOKEN_KEY, token);
+    const response = await api.get<User>("/auth/me");
     setUser(response.data);
+    return response.data;
   }
 
-  function logout() {
-    localStorage.removeItem("token");
+  /** Logout real (T10): apaga o token e o usuário em memória. */
+  const logout = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem("usuario_email");
     setUser(null);
-  }
-
-  async function loadUser() {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const response = await axios.get("http://localhost:3000/auth/me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      setUser(response.data);
-    } catch {
-      localStorage.removeItem("token");
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, []);
 
   useEffect(() => {
-    loadUser();
+    async function carregarUsuario() {
+      if (!localStorage.getItem(TOKEN_KEY)) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const response = await api.get<User>("/auth/me");
+        setUser(response.data);
+      } catch {
+        localStorage.removeItem(TOKEN_KEY);
+      } finally {
+        setLoading(false);
+      }
+    }
+    carregarUsuario();
   }, []);
 
   return (
@@ -71,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);
 }

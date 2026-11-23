@@ -1,0 +1,37 @@
+.conteudo-ajuda {
+    margin-left: 280px;
+    padding: 50px 40px;
+    max-width: 920px;
+    box-sizing: border-box;
+}
+
+.conteudo-ajuda .titulo-pagina {
+    font-size: 36px;
+    margin: 0 0 8px;
+}
+
+.ajuda-tarefa {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 18px;
+}
+
+.ajuda-tarefa h2 {
+    margin: 0 0 10px;
+    font-size: 20px;
+    color: #0021a5;
+}
+
+.ajuda-tarefa ol,
+.ajuda-tarefa ul {
+    margin: 0 0 12px;
+    padding-left: 22px;
+    line-height: 1.7;
+    font-size: 16px;
+}
+
+.ajuda-tarefa a.botao-editar {
+    text-decoration: none;
+}
