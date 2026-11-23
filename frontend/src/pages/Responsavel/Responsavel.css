@@ -360,3 +360,19 @@
   color: #64748B;
   padding: 20px 0;
 }
+a.card-resumo {
+    text-decoration: none;
+    color: inherit;
+}
+
+a.card-resumo:hover {
+    box-shadow: 0 6px 16px rgba(0, 33, 165, 0.15);
+}
+
+.legenda-card {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #4b5563;
+    text-align: center;
+}

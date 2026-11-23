@@ -209,3 +209,9 @@
     justify-content: center;
     margin-left: 2px;
 }
+.titulo-aviso {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #222;
+}
