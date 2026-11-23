@@ -1,128 +1,136 @@
-import { Injectable } from '@nestjs/common';
-import axios from 'axios';
-import { EmailService } from '../email/email.service';
-import gerarSenhaAleatoria from '../utils/password.util';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
+import { DbService } from '../common/db.service';
+import { UsuariosService, normalizarEmail, semSenha } from '../usuarios/usuarios.service';
+import { TipoUsuario } from '../classes/tipo-usuario';
+import {
+  UsuarioLogado,
+  escolaDoUsuario,
+  garantirMesmaEscola,
+  somenteDigitos,
+} from '../common/escopo';
+
+const CAMPOS = ['nome', 'email', 'cpf', 'telefone', 'dataNascimento', 'formacao'] as const;
 
 @Injectable()
 export class ProfessoresService {
-    private url = 'http://localhost:3001/professores';
-    
-    constructor(
-        private readonly emailService: EmailService
-    ) {}
+  constructor(
+    private readonly db: DbService,
+    private readonly usuarios: UsuariosService,
+  ) {}
 
-    async findAll() {
-        const response = await axios.get(this.url);
-        return response.data;
+  async findAll(user: UsuarioLogado) {
+    const lista = await this.db.list('professores', { escolaId: escolaDoUsuario(user) });
+    return lista.map(semSenha);
+  }
+
+  async findOne(id: string, user: UsuarioLogado) {
+    const professor = await this.db.get('professores', id, 'Professor não encontrado.');
+    garantirMesmaEscola(user, professor);
+    return semSenha(professor);
+  }
+
+  private async garantirCpfLivre(cpf: string, excetoId?: string) {
+    const todos = await this.db.list('professores');
+    const repetido = todos.find(
+      (p) => somenteDigitos(p.cpf) === somenteDigitos(cpf) && String(p.id) !== String(excetoId ?? ''),
+    );
+    if (repetido) {
+      throw new ConflictException({
+        message: 'Este CPF já está cadastrado.',
+        campos: { cpf: 'Este CPF já está cadastrado para outro professor. Confira os números digitados.' },
+      });
+    }
+  }
+
+  async create(dados: any, user: UsuarioLogado) {
+    const escolaId = escolaDoUsuario(user);
+    await this.garantirCpfLivre(dados.cpf);
+    await this.usuarios.garantirEmailLivre(dados.email, 'email');
+
+    const professor = await this.db.create('professores', {
+      nome: dados.nome,
+      email: normalizarEmail(dados.email),
+      cpf: dados.cpf,
+      telefone: dados.telefone,
+      dataNascimento: dados.dataNascimento,
+      formacao: dados.formacao,
+      escolaId,
+    });
+
+    // Lista na escola mantida por compatibilidade (contadores do dashboard).
+    const escola = await this.db.get('escolas', escolaId);
+    await this.db.patch('escolas', escolaId, {
+      professores: [...(escola.professores ?? []), professor.cpf],
+    });
+
+    const credenciais = await this.usuarios.criarComCredenciais(
+      { nome: professor.nome, email: professor.email, tipo: TipoUsuario.PROF, escolaId, perfilId: professor.id },
+      'Professor',
+    );
+
+    return {
+      ...professor,
+      emailEnviado: credenciais.emailEnviado,
+      senhaTemporaria: credenciais.senhaTemporaria,
+    };
+  }
+
+  /** Atualização parcial (RF06). Atualiza também o usuário de login quando nome/e-mail mudam. */
+  async update(id: string, dados: any, user: UsuarioLogado) {
+    const atual = await this.db.get('professores', id, 'Professor não encontrado.');
+    garantirMesmaEscola(user, atual);
+
+    const alteracoes: Record<string, any> = {};
+    for (const campo of CAMPOS) if (dados[campo] !== undefined) alteracoes[campo] = dados[campo];
+
+    if (alteracoes.cpf && somenteDigitos(alteracoes.cpf) !== somenteDigitos(atual.cpf)) {
+      await this.garantirCpfLivre(alteracoes.cpf, id);
+    }
+    if (alteracoes.email) {
+      alteracoes.email = normalizarEmail(alteracoes.email);
+      if (alteracoes.email !== atual.email) {
+        const [login] = await this.db.list('usuarios', { tipo: TipoUsuario.PROF, perfilId: String(id) });
+        await this.usuarios.garantirEmailLivre(alteracoes.email, 'email', login?.id);
+      }
     }
 
-    async create(professor: any) {
-        const { escolaId, ...dadosFormulario } = professor;
+    const atualizado = await this.db.patch('professores', id, alteracoes);
+    await this.usuarios.atualizarPorPerfil(TipoUsuario.PROF, id, {
+      nome: alteracoes.nome,
+      email: alteracoes.email,
+    });
 
-        const response = await axios.get(this.url);
-        const professores = response.data;
-
-        const senhaAleatoria = gerarSenhaAleatoria();
-
-        const maiorId =
-            professores.length > 0 ? Math.max(...professores.map((a: any) => Number(a.id))) : 0;
-        
-        const payload = {
-            id: maiorId + 1,
-            nome: dadosFormulario.nome,
-            email: dadosFormulario.email,
-            cpf: dadosFormulario.cpf,
-            telefone: dadosFormulario.telefone,
-            dataNascimento: dadosFormulario.dataNascimento,
-            formacao: dadosFormulario.formacao,
-            senha: senhaAleatoria,
-            tipo: "prof",
-        };
-
-        const novo = await axios.post(this.url, payload);
-
-        await this.emailService.enviarCredenciais(
-            novo.data.nome,
-            novo.data.email,
-            senhaAleatoria,
-            'Professor',
-        );
-
-        await axios.post('http://localhost:3001/usuarios', {
-            id: novo.data.id,
-            nome: novo.data.nome,
-            email: novo.data.email,
-            senha: senhaAleatoria,
-            tipo: "prof",
+    if (alteracoes.cpf && alteracoes.cpf !== atual.cpf) {
+      const escola = await this.db.find('escolas', atual.escolaId);
+      if (escola) {
+        await this.db.patch('escolas', escola.id, {
+          professores: (escola.professores ?? []).map((c: string) => (c === atual.cpf ? alteracoes.cpf : c)),
         });
+      }
+    }
+    return semSenha(atualizado);
+  }
 
-        if (escolaId) {
-            const escolaUrl = `http://localhost:3001/escolas/${escolaId}`;
-            const escolaResponse = await axios.get(escolaUrl);
-            const escolaDados = { ...escolaResponse.data };
-    
-            escolaDados.professores = escolaDados.professores || [];
-            escolaDados.professores.push(payload.cpf); 
-    
-            await axios.put(escolaUrl, escolaDados);
-        }
+  async remove(id: string, user: UsuarioLogado) {
+    const professor = await this.db.get('professores', id, 'Professor não encontrado.');
+    garantirMesmaEscola(user, professor);
 
-        return {
-            ...novo.data,
-            senha: senhaAleatoria
-        };
+    const disciplinas = await this.db.list('disciplinas', { professorId: String(id) });
+    if (disciplinas.length > 0) {
+      throw new ConflictException(
+        `Este professor ainda leciona ${disciplinas.map((d) => d.nomeDisciplina).join(', ')}. ` +
+          'Troque o professor dessas disciplinas antes de excluí-lo.',
+      );
     }
 
-    async findOne(id: string) {
-        const response = await axios.get(`${this.url}/${id}`);
-        return response.data;
+    await this.usuarios.removerPorPerfil(TipoUsuario.PROF, id);
+    const escola = await this.db.find('escolas', professor.escolaId);
+    if (escola) {
+      await this.db.patch('escolas', escola.id, {
+        professores: (escola.professores ?? []).filter((c: string) => c !== professor.cpf),
+      });
     }
-
-    async update(id: string, data: any) {
-        const response = await axios.put(`${this.url}/${id}`, {
-            ...data,
-            id,
-        });
-        return response.data;
-    }
-
-    async remove(id: string, escolaId?: string) {
-        const professorResponse = await axios.get(`${this.url}/${id}`);
-        const professor = professorResponse.data;
-
-        const disciplinas = await axios.get("http://localhost:3001/disciplinas");
-        const profEmUso = disciplinas.data.some((disciplina: any) =>
-            disciplina.professorId === id
-        );
-
-        if (profEmUso) {
-            throw new ConflictException(
-                "Professor está dando disciplina(s)."
-            );
-        }
-
-        const usuariosResponse = await axios.get(`http://localhost:3001/usuarios?email=${professor.email}`);
-        const usuarios = usuariosResponse.data;
-
-        if (usuarios.length > 0) {
-            const usuarioId = usuarios[0].id; 
-            await axios.delete(`http://localhost:3001/usuarios/${usuarioId}`);
-        }
-
-        if (escolaId) {
-            const escolaUrl = `http://localhost:3001/escolas/${escolaId}`;
-            const escolaResponse = await axios.get(escolaUrl);
-            const escolaData = { ...escolaResponse.data };
-    
-            if (escolaData.professores) {
-                escolaData.professores = escolaData.professores.filter((cpf: string) => cpf !== professor.cpf);
-                await axios.put(escolaUrl, escolaData);
-            }
-        }
-
-        await axios.delete(`${this.url}/${id}`);
-        
-        return { message: 'Professor removido com sucesso' };
-    }
+    await this.db.remove('professores', id);
+    return { message: 'Professor excluído com sucesso.' };
+  }
 }

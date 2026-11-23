@@ -1,62 +1,69 @@
 import { Injectable } from '@nestjs/common';
-import axios from 'axios';
-import { AdministradorEscolar } from '../classes/AdministradorEscolar';
-import { EmailService } from '../email/email.service';
-import gerarSenhaAleatoria from '../utils/password.util';
+import { DbService } from '../common/db.service';
+import { UsuariosService, normalizarEmail } from '../usuarios/usuarios.service';
 import { TipoUsuario } from '../classes/tipo-usuario';
+
+export interface DadosAdministradorEscolar {
+  nome: string;
+  email: string;
+  cargo: string;
+  cpf?: string;
+  escolaId: string;
+}
 
 @Injectable()
 export class AdministradoresEscolaresService {
+  constructor(
+    private readonly db: DbService,
+    private readonly usuarios: UsuariosService,
+  ) {}
 
-    private url = 'http://localhost:3001/administradoresEscolares';
+  /** Cria o administrador escolar e o usuário de login (senha só em hash, T3/T5). */
+  async create(dados: DadosAdministradorEscolar) {
+    const admin = await this.db.create('administradoresEscolares', {
+      nome: dados.nome,
+      email: normalizarEmail(dados.email),
+      cargo: dados.cargo,
+      cpf: dados.cpf ?? null,
+      escolaId: String(dados.escolaId),
+    });
 
-    constructor(
-        private readonly emailService: EmailService
-    ) {}
+    const credenciais = await this.usuarios.criarComCredenciais(
+      {
+        nome: admin.nome,
+        email: admin.email,
+        tipo: TipoUsuario.ADMIN_ESCOLAR,
+        escolaId: admin.escolaId,
+        perfilId: admin.id,
+      },
+      'Administrador Escolar',
+    );
 
-    async create(administrador: AdministradorEscolar) {
+    return {
+      administrador: admin,
+      emailEnviado: credenciais.emailEnviado,
+      senhaTemporaria: credenciais.senhaTemporaria,
+    };
+  }
 
-        const response = await axios.get(this.url);
-        const administradoresEscolares = response.data;
+  listarPorEscola(escolaId: string) {
+    return this.db.list('administradoresEscolares', { escolaId: String(escolaId) });
+  }
 
-        const senhaAleatoria = gerarSenhaAleatoria();
+  async atualizar(id: string, dados: { nome?: string; email?: string; cargo?: string }) {
+    const atualizado = await this.db.patch('administradoresEscolares', id, {
+      ...dados,
+      ...(dados.email ? { email: normalizarEmail(dados.email) } : {}),
+    });
+    await this.usuarios.atualizarPorPerfil(TipoUsuario.ADMIN_ESCOLAR, id, dados);
+    return atualizado;
+  }
 
-        const maiorId =
-            administradoresEscolares.length > 0
-                ? Math.max(...administradoresEscolares.map((a: any) => Number(a.id)))
-                : 0;
-
-        const payload = {
-            id: maiorId + 1,
-            nome: administrador.nome,
-            email: administrador.email,
-            senha: senhaAleatoria,
-            tipo: TipoUsuario.ADMIN_ESCOLAR,
-            cargo: administrador.cargo,
-            escolaId: administrador.escolaId
-        };
-
-        const novo = await axios.post(this.url, payload);
-
-        await this.emailService.enviarCredenciais(
-            payload.nome,
-            payload.email,
-            senhaAleatoria,
-            'Administrador Escolar'
-        );
-
-        await axios.post('http://localhost:3001/usuarios', {
-            id: payload.id,
-            nome: payload.nome,
-            email: payload.email,
-            senha: payload.senha,
-            tipo: payload.tipo,
-        });
-
-        return {
-            ...novo.data,
-            senha: senhaAleatoria
-        };
+  async removerDaEscola(escolaId: string) {
+    const admins = await this.listarPorEscola(escolaId);
+    for (const admin of admins) {
+      await this.usuarios.removerPorPerfil(TipoUsuario.ADMIN_ESCOLAR, admin.id);
+      await this.db.remove('administradoresEscolares', admin.id);
     }
-
+  }
 }
