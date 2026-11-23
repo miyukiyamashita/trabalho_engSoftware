@@ -1,141 +1,19 @@
-import { useState, useEffect } from "react";
 import { SidebarResponsavel } from "./SidebarResponsavel";
-import axios from "axios";
 import { FaUserCircle, FaBell } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import "./Responsavel.css";
+import { usePainelResponsavel } from "./usePainel";
+import { formatarNota, situacaoNota, NOTA_MAX_FINAL } from "../../utils/notas";
+import { formatarDataHora } from "../../utils/formatar";
 
 export default function Responsavel() {
-  const [responsavelEmail] = useState<string>(() => {
-    return localStorage.getItem("usuario_email") || "";
-  });
+  const { painel, erro, carregando } = usePainelResponsavel();
 
-  const [responsavelNome, setResponsavelNome] = useState<string>("Carregando...");
-  const [alunoInfo, setAlunoInfo] = useState<{ nome: string; serie: string } | null>(null);
-  const [mediaGeral, setMediaGeral] = useState<string>("0.0");
-  const [frequenciaGeral, setFrequenciaGeral] = useState<number>(0);
-  const [avisosNaoLidos, setAvisosNaoLidos] = useState<number>(0);
-  const [ultimosAvisos, setUltimosAvisos] = useState<any[]>([]);
-  const [carregando, setCarregando] = useState<boolean>(true);
-
-  useEffect(() => {
-    if (!responsavelEmail) {
-      setCarregando(false);
-      return;
-    }
-
-    async function carregarDashboard() {
-      try {
-        setCarregando(true);
-
-        const resAlunos = await axios.get("http://localhost:3001/alunos");
-        const aluno = resAlunos.data.find(
-          (a: any) => a.emailResponsavel?.toLowerCase().trim() === responsavelEmail.toLowerCase().trim()
-        );
-
-        if (aluno) {
-          setResponsavelNome(aluno.nomeResponsavel || "Responsável");
-
-          const alunoIdCorreto = String(aluno.id);
-
-          const resTurmas = await axios.get("http://localhost:3001/turmas");
-          const turma = resTurmas.data.find((t: any) =>
-            t.alunos?.map(String).includes(alunoIdCorreto)
-          );
-
-          const nomeTurmaEncontrada = turma ? (turma.nomeTurma || turma.nome || "Turma") : "Turma";
-          
-          let serieFormatada = "Ensino Fundamental I";
-          if (turma?.anoSerie === "1") {
-            serieFormatada = "Educação Básica";
-          } else if (turma?.anoSerie === "2") {
-            serieFormatada = "Ensino Fundamental I";
-          }
-
-          setAlunoInfo({
-            nome: aluno.nomeAluno || "Aluno",
-            serie: `${nomeTurmaEncontrada} • ${serieFormatada}`
-          });
-
-          if (turma) {
-            const resNotas = await axios.get(`http://localhost:3001/notas?turmaId=${turma.id}`);
-            const notasAluno = resNotas.data.filter((n: any) => String(n.alunoId) === alunoIdCorreto);
-            
-            let somaNotas = 0;
-            let countNotas = 0;
-
-            notasAluno.forEach((n: any) => {
-              [n.bim1, n.bim2, n.bim3, n.bim4].forEach(b => {
-                if (b !== undefined && b !== "" && b !== null) {
-                  somaNotas += Number(b);
-                  countNotas++;
-                }
-              });
-            });
-
-            if (countNotas > 0) {
-              setMediaGeral((somaNotas / countNotas).toFixed(1));
-            }
-
-            const resChamadas = await axios.get(`http://localhost:3001/frequencia?turmaId=${turma.id}`);
-            let totalAulas = 0;
-            let presencas = 0;
-
-            resChamadas.data.forEach((dia: any) => {
-              const reg = dia.chamada?.find((c: any) => String(c.alunoId) === alunoIdCorreto);
-              if (reg) {
-                totalAulas++;
-                if (reg.presente === true || reg.presente === "true") presencas++;
-              }
-            });
-
-            if (totalAulas > 0) {
-              setFrequenciaGeral(Math.round((presencas / totalAulas) * 100));
-            } else {
-              setFrequenciaGeral(100);
-            }
-          }
-        }
-
-        try {
-          const resAvisos = await axios.get(`http://localhost:3000/avisos/responsavel/${responsavelEmail}`);
-          const todosAvisos = resAvisos.data || [];
-          
-          const naoLidos = todosAvisos.filter(
-            (av: any) => !av.responsaveisQueLeram?.includes(responsavelEmail)
-          );
-          
-          setAvisosNaoLidos(naoLidos.length);
-          setUltimosAvisos(todosAvisos.slice(0, 2));
-        } catch (err) {
-        }
-
-      } catch (error) {
-      } finally {
-        setCarregando(false);
-      }
-    }
-
-    carregarDashboard();
-  }, [responsavelEmail]);
-
-  const valorMediaNumerico = Number(String(mediaGeral).replace(",", "."));
-  const percentualMedia = (valorMediaNumerico / 10) * 100;
-
-  function obterClasseStatusNota(percentual: number) {
-    if (percentual >= 70) return "status-bom";
-    if (percentual >= 60) return "status-medio";
-    return "status-ruim";
-  }
-
-  function obterClasseStatusFrequencia(percentual: number) {
-    if (percentual >= 90) return "status-bom";
-    if (percentual >= 75) return "status-medio";
-    return "status-ruim";
-  }
-
-  const statusMediaClasse = obterClasseStatusNota(percentualMedia);
-  const statusFrequenciaClasse = obterClasseStatusFrequencia(frequenciaGeral);
+  const notaGeral = painel?.resumo?.notaGeral ?? null;
+  const freq = painel?.resumo?.frequenciaGeral ?? null;
+  const proporcaoNota = notaGeral === null ? 0 : Math.min(notaGeral / NOTA_MAX_FINAL, 1);
+  const classeNota = { bom: "status-bom", medio: "status-medio", ruim: "status-ruim", sem: "" }[situacaoNota(notaGeral)];
+  const classeFreq = freq === null ? "" : freq >= 90 ? "status-bom" : freq >= 75 ? "status-medio" : "status-ruim";
 
   return (
     <div className="layout-responsavel-container">
@@ -145,105 +23,101 @@ export default function Responsavel() {
         <header className="header-bemvindo-card">
           <div className="textos-bemvindo">
             <h1>Olá, bem-vindo(a)!</h1>
-            <p>Acompanhe o desempenho do seu filho com facilidade</p>
+            <p>Acompanhe o desempenho escolar com facilidade</p>
           </div>
           <div className="user-profile-top">
-            <span>Responsável: <strong>{responsavelNome}</strong></span>
-            <FaUserCircle className="icone-user-top" />
+            <span>
+              Responsável: <strong>{painel?.responsavel?.nome ?? "..."}</strong>
+            </span>
+            <FaUserCircle className="icone-user-top" aria-hidden="true" />
           </div>
         </header>
 
         {carregando ? (
-          <p className="loading-txt">Carregando painel do aluno...</p>
+          <p className="loading-txt" role="status">Carregando o painel do aluno...</p>
+        ) : erro ? (
+          <p className="loading-txt" role="alert">{erro}</p>
+        ) : !painel?.aluno ? (
+          <p className="loading-txt">
+            Nenhum aluno está vinculado à sua conta. Procure a secretaria da escola para conferir o e-mail cadastrado.
+          </p>
         ) : (
           <>
-            <section className="aluno-identificacao-area">
+            <section className="aluno-identificacao-area" aria-label="Aluno">
               <div className="aluno-avatar-circle">
-                <FaUserCircle />
+                <FaUserCircle aria-hidden="true" />
               </div>
               <div className="aluno-dados-textos">
                 <span className="aluno-label-sub">Aluno</span>
-                <h2 className="aluno-nome-destaque">{alunoInfo?.nome || "Não vinculado"}</h2>
-                <p className="aluno-serie-sub">{alunoInfo?.serie || "Ensino Fundamental I"}</p>
+                <h2 className="aluno-nome-destaque">{painel.aluno.nomeAluno}</h2>
+                <p className="aluno-serie-sub">
+                  {painel.turma ? `${painel.turma.nomeTurma} • ${painel.segmento}` : "Ainda não matriculado em uma turma"}
+                </p>
               </div>
             </section>
 
             <section className="resumo-cards-grid">
-              
-              <div className="card-resumo">
-                <span className="card-resumo-titulo">Média Geral</span>
+              <Link to="/responsavel/notas" className="card-resumo" aria-label={`Nota geral ${formatarNota(notaGeral)} de ${NOTA_MAX_FINAL}. Ver notas`}>
+                <span className="card-resumo-titulo">Nota geral (0 a {NOTA_MAX_FINAL})</span>
                 <div className="semicirculo-container">
-                  <svg className="semicirculo-svg" viewBox="0 0 160 160">
+                  <svg className="semicirculo-svg" viewBox="0 0 160 160" aria-hidden="true">
                     <circle className="arco-fundo" cx="80" cy="80" r="63" />
-                    
-                    <circle 
-                      className={`arco-progresso ${statusMediaClasse}`} 
-                      cx="80" 
-                      cy="80" 
-                      r="63" 
-                      style={{ strokeDashoffset: 198 - (198 * valorMediaNumerico) / 10 }} 
-                    />
-                    <circle 
-                      className="marcador-ponta" 
-                      cx="17" 
-                      cy="80" 
-                      r="8" 
-                      style={{ transform: `rotate(${180 * (valorMediaNumerico / 10)}deg)` }}
-                    />
+                    <circle className={`arco-progresso ${classeNota}`} cx="80" cy="80" r="63" style={{ strokeDashoffset: 198 - 198 * proporcaoNota }} />
+                    <circle className="marcador-ponta" cx="17" cy="80" r="8" style={{ transform: `rotate(${180 * proporcaoNota}deg)` }} />
                   </svg>
-                  <span className="valor-centro-arco">{String(mediaGeral).replace(".", ",")}</span>
+                  <span className="valor-centro-arco">{notaGeral === null ? "—" : formatarNota(notaGeral)}</span>
                 </div>
-              </div>
+                <span className="legenda-card">Média das notas finais (soma dos bimestres)</span>
+              </Link>
 
-              <div className="card-resumo">
-                <span className="card-resumo-titulo">Frequência Geral</span>
+              <Link to="/responsavel/frequencia" className="card-resumo" aria-label={`Frequência geral ${freq === null ? "sem registros" : `${freq}%`}. Ver frequência`}>
+                <span className="card-resumo-titulo">Frequência geral</span>
                 <div className="freq-card-conteudo">
-                  <span className="freq-valor-texto">{frequenciaGeral}%</span>
-                  <div className="barra-freq-fundo">
-                    <div className={`barra-freq-cor ${statusFrequenciaClasse}`} style={{ width: `${frequenciaGeral}%` }}></div>
+                  <span className="freq-valor-texto">{freq === null ? "Sem registros" : `${freq}%`}</span>
+                  <div className="barra-freq-fundo" aria-hidden="true">
+                    <div className={`barra-freq-cor ${classeFreq}`} style={{ width: `${freq ?? 0}%` }}></div>
                   </div>
                 </div>
-              </div>
+              </Link>
 
               <div className="card-resumo card-avisos-mini">
-                <span className="card-resumo-titulo">Avisos Não Lidos</span>
+                <span className="card-resumo-titulo">Avisos não lidos</span>
                 <div className="avisos-card-conteudo">
                   <div className="avisos-numero-area">
-                    <span className="avisos-numero-destaque">{avisosNaoLidos}</span>
+                    <span className="avisos-numero-destaque">{painel.avisos?.naoLidos ?? 0}</span>
                     <Link to="/responsavel/avisos" className="link-ver-avisos">Ver avisos</Link>
                   </div>
-                  <div className="avisos-sino-badge">
+                  <div className="avisos-sino-badge" aria-hidden="true">
                     <FaBell />
                   </div>
                 </div>
               </div>
-
             </section>
 
             <section className="card-ultimos-avisos-lista">
-              <h3>Últimos Avisos</h3>
-
+              <h3>Últimos avisos</h3>
               <div className="lista-avisos-container">
-                {ultimosAvisos.length === 0 ? (
+                {(painel.avisos?.ultimos ?? []).length === 0 ? (
                   <p className="sem-avisos-txt">Nenhum aviso recente.</p>
                 ) : (
-                  ultimosAvisos.map((aviso, idx) => (
-                    <div className="item-aviso-linha" key={idx}>
+                  painel.avisos!.ultimos.map((aviso) => (
+                    <div className="item-aviso-linha" key={aviso.id}>
                       <div className="aviso-info-ponto">
-                        <span className={`ponto-tipo ${aviso.tipoAviso === "alerta" ? "vermelho" : "azul"}`}></span>
+                        <span className={`ponto-tipo ${aviso.tipoAviso === "alerta" ? "vermelho" : "azul"}`} aria-hidden="true"></span>
                         <div>
-                          <h4>{aviso.tituloAviso || "Aviso Escolar"}</h4>
-                          <p>{aviso.descricao || "Sem descrição"}</p>
+                          <h4>
+                            {aviso.tipoAviso === "alerta" ? "Alerta: " : ""}
+                            {aviso.tituloAviso}
+                            {!aviso.lido && <span className="selo selo-pendente" style={{ marginLeft: 8 }}>Não lido</span>}
+                          </h4>
+                          <p>{aviso.descricao}</p>
                         </div>
                       </div>
-                      <span className="data-aviso-texto">
-                        {aviso.dataCriacao ? new Date(aviso.dataCriacao).toLocaleDateString('pt-BR') : "20/05/2026"}
-                      </span>
+                      <span className="data-aviso-texto">{formatarDataHora(aviso.dataCriacao)}</span>
                     </div>
                   ))
                 )}
               </div>
-
               <div className="rodape-lista-avisos">
                 <Link to="/responsavel/avisos" className="btn-texto-primario">Ver todos os avisos</Link>
               </div>

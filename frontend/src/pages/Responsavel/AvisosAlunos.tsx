@@ -1,137 +1,119 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { FiCheck } from "react-icons/fi";
 import { SidebarResponsavel } from "./SidebarResponsavel";
-import axios from "axios";
 import "./avisosAlunos.css";
-import { useAuth } from "../../contexts/AuthContext";
+import { api } from "../../services/api";
+import { useFeedback } from "../../components/Feedback";
+import { Carregando, ListaVazia } from "../../components/Campos";
+import { lerErro } from "../../utils/erros";
+import { formatarDataHora } from "../../utils/formatar";
 
-export function AvisosAlunos(){
-    const [filtro, setFiltro] = useState<"todos" | "nao-lidos" | "lidos">("todos");
-    const [listaAvisos, setListaAvisos] = useState<any[]>([]);
+type Filtro = "todos" | "nao-lidos" | "lidos";
 
-    const { user } = useAuth() as any;
-    const emailResponsavel = user?.email || "";//recebe email do responsavel
+/** RF13: o responsável vê os avisos das turmas do filho e confirma a leitura. */
+export function AvisosAlunos() {
+  const feedback = useFeedback();
+  const [filtro, setFiltro] = useState<Filtro>("nao-lidos");
+  const [avisos, setAvisos] = useState<any[] | null>(null);
+  const [marcando, setMarcando] = useState<string | null>(null);
 
-    useEffect(() => { 
-        if (emailResponsavel) {
-            carregarAvisosDoResponsavel();
-
-            const intervalo = setInterval(() => {
-                carregarAvisosDoResponsavel();
-            }, 5000);
-
-            return () => clearInterval(intervalo);
-        }
-    }, [emailResponsavel]);
-
-    async function carregarAvisosDoResponsavel() {
-        try {
-            const response = await axios.get(`http://localhost:3000/avisos/responsavel/${emailResponsavel}`);
-            setListaAvisos(response.data);
-        } catch (error) {
-            console.error("Erro ao carregar avisos:", error);
-        }
+  const carregar = useCallback(async () => {
+    try {
+      const { data } = await api.get("/avisos");
+      setAvisos(data);
+    } catch (e) {
+      setAvisos((atual) => atual ?? []);
+      feedback.erro(lerErro(e, "Não foi possível carregar os avisos.").mensagem);
     }
+  }, [feedback]);
 
-    async function marcarComoLido(avisoOriginal: any) {
-        try {
-            const leiturasAtuais = avisoOriginal.responsaveisQueLeram || [];
-            if (!leiturasAtuais.includes(emailResponsavel)) {
-                leiturasAtuais.push(emailResponsavel);
-            }
-            const avisoAtualizado = {
-                ...avisoOriginal,
-                responsaveisQueLeram: leiturasAtuais
-            };
-            await axios.put(`http://localhost:3000/avisos/${avisoOriginal.id}`, avisoAtualizado);
+  useEffect(() => {
+    carregar();
+    const intervalo = window.setInterval(carregar, 30000);
+    return () => window.clearInterval(intervalo);
+  }, [carregar]);
 
-            setListaAvisos(prev => 
-                prev.map(aviso => aviso.id === avisoOriginal.id ? avisoAtualizado : aviso)
-            );
-
-            console.log("Aviso atualizado com sucesso!");
-        } catch (error) {
-            console.error("Erro ao marcar aviso como lido:", error);
-        }
+  async function marcarComoLido(aviso: any) {
+    setMarcando(aviso.id);
+    try {
+      await api.patch(`/avisos/${aviso.id}/leitura`);
+      setAvisos((lista) => (lista ?? []).map((a) => (a.id === aviso.id ? { ...a, lido: true } : a)));
+      feedback.sucesso(`Leitura confirmada: "${aviso.tituloAviso}". A escola já pode ver que você leu.`);
+    } catch (e) {
+      feedback.erro(lerErro(e, "Não foi possível confirmar a leitura. Tente novamente.").mensagem);
+    } finally {
+      setMarcando(null);
     }
+  }
 
-    const avisosFiltrados = listaAvisos.filter(aviso => {
-        const estaLido = aviso.responsaveisQueLeram?.includes(emailResponsavel);
-        if (filtro === "nao-lidos") return !estaLido;
-        if (filtro === "lidos") return estaLido;
-        return true;
-    });
+  const lista = avisos ?? [];
+  const totalNaoLidos = lista.filter((a) => !a.lido).length;
+  const filtrados = lista.filter((a) => (filtro === "nao-lidos" ? !a.lido : filtro === "lidos" ? a.lido : true));
 
-    const totalNaoLidos = listaAvisos.filter(aviso => !aviso.responsaveisQueLeram?.includes(emailResponsavel)).length;
+  const botao = (valor: Filtro, rotulo: string, contador?: number) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={filtro === valor}
+      className={filtro === valor ? "botao-filtro ativo" : "botao-filtro"}
+      onClick={() => setFiltro(valor)}
+    >
+      {rotulo} {contador ? <span className="contador">{contador}</span> : null}
+    </button>
+  );
 
-    return (
-        <>
-            <div className="conteudo-principal-responsavel">
-                <h1>Avisos</h1>
-                <div className="botoes-filtros-responsavel">
-                    <button 
-                        className={filtro === "todos" ? "botao-filtro ativo" : "botao-filtro"}
-                        onClick={() => setFiltro("todos")}
-                    >
-                        Todos
-                    </button>
-                    <button 
-                        className={filtro === "nao-lidos" ? "botao-filtro ativo" : "botao-filtro"}
-                        onClick={() => setFiltro("nao-lidos")}
-                    >
-                        Não lidos {totalNaoLidos > 0 && <span className="contador">{totalNaoLidos}</span>}
-                    </button>
-                    <button 
-                        className={filtro === "lidos" ? "botao-filtro ativo" : "botao-filtro"}
-                        onClick={() => setFiltro("lidos")}
-                    >
-                        Lidos
-                    </button>
-                </div>
-                <div className="box-borda-avisos-responsavel">
-                    <div className="box-scroll-avisos-aluno">
-                        {avisosFiltrados.length === 0 ? (
-                            <p style={{ padding: "20px", textAlign: "center", color: "#64748b" }}>
-                                Nenhum aviso encontrado nesta categoria.
-                            </p>
-                        ) : (
-                            avisosFiltrados.map((aviso) => {
-                                const lido = aviso.responsaveisQueLeram?.includes(emailResponsavel);
-                                return (
-                                    <div className="linha-aviso-responsavel" key={aviso.id}>
-                                        <div className="aviso-esquerda">
-                                            <div className={`bolinha-status ${aviso.tipoAviso === "alerta" ? "vermelha" : "azul"}`}></div>
-                                            <div className="aviso-textos">
-                                                <h4>{aviso.tituloAviso}</h4>
-                                                <p>{aviso.descricao}</p>
-                                            </div>
-                                        </div>
-                                        <div className="aviso-direita-responsavel">
-                                            <span className="aviso-data">
-                                                {aviso.dataCriacao ? new Date(aviso.dataCriacao).toLocaleDateString('pt-BR') : "20/05/2026"}
-                                            </span>
-                                            {!lido && (
-                                                <button 
-                                                    className="botao-marcar-lido" 
-                                                    onClick={() => marcarComoLido(aviso)}
-                                                >
-                                                    Marcar como lido
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        )}
+  return (
+    <>
+      <main className="conteudo-principal-responsavel">
+        <h1>Avisos</h1>
+        <p className="texto-ajuda">
+          Avisos enviados pela escola e pelos professores. Depois de ler, toque em "Confirmar leitura" para avisar a escola.
+        </p>
+        <div className="botoes-filtros-responsavel" role="tablist" aria-label="Filtrar avisos">
+          {botao("nao-lidos", "Não lidos", totalNaoLidos)}
+          {botao("lidos", "Lidos")}
+          {botao("todos", "Todos")}
+        </div>
+        <div className="box-borda-avisos-responsavel">
+          <div className="box-scroll-avisos-aluno">
+            {avisos === null ? (
+              <Carregando texto="Carregando avisos..." />
+            ) : filtrados.length === 0 ? (
+              <ListaVazia
+                texto={filtro === "nao-lidos" ? "Você não tem avisos para ler. Tudo em dia!" : "Nenhum aviso encontrado nesta categoria."}
+              />
+            ) : (
+              filtrados.map((aviso) => (
+                <article className="linha-aviso-responsavel" key={aviso.id}>
+                  <div className="aviso-esquerda">
+                    <span className={`bolinha-status ${aviso.tipoAviso === "alerta" ? "vermelha" : "azul"}`} aria-hidden="true"></span>
+                    <div className="aviso-textos">
+                      <h2 className="titulo-aviso">
+                        {aviso.tipoAviso === "alerta" && <span className="selo selo-rejeitada">Alerta</span>} {aviso.tituloAviso}
+                      </h2>
+                      <p>{aviso.descricao}</p>
+                      {aviso.nomeRemetente && <span className="aviso-data">Enviado por {aviso.nomeRemetente}</span>}
                     </div>
-                    {/*<div className="box-rodape-ver-todos">
-                        <button className="btn-ver-todos" onClick={() => setFiltro("todos")}>
-                            Ver todos
-                        </button>
-                    </div>
-                    */}
-                </div>
-            </div>
-            <SidebarResponsavel />
-        </>
-    );
+                  </div>
+                  <div className="aviso-direita-responsavel">
+                    <span className="aviso-data">{formatarDataHora(aviso.dataCriacao)}</span>
+                    {aviso.lido ? (
+                      <span className="selo selo-aprovada">
+                        <FiCheck aria-hidden="true" /> Lido
+                      </span>
+                    ) : (
+                      <button type="button" className="botao-marcar-lido" disabled={marcando === aviso.id} onClick={() => marcarComoLido(aviso)}>
+                        {marcando === aviso.id ? "Confirmando..." : "Confirmar leitura"}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </div>
+      </main>
+      <SidebarResponsavel />
+    </>
+  );
 }

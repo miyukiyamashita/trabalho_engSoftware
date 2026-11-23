@@ -236,3 +236,16 @@
 .celula-status-tabela {
     text-align: center;
 }
+.texto-sem-registro { color: #6b7280; }
+.bg-sem-registro { background-color: #cbd5e1; }
+
+.subtitulo-faltas {
+    margin: 32px 0 12px;
+    font-size: 20px;
+}
+
+.lista-faltas {
+    margin: 0;
+    padding-left: 20px;
+    line-height: 1.8;
+}

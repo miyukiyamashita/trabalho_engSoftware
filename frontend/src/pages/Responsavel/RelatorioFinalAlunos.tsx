@@ -1,67 +1,92 @@
-import { useState, useEffect } from "react";
-import { SidebarResponsavel } from "././SidebarResponsavel";
-import axios from "axios";
+import { useEffect, useState } from "react";
+import { FiDownload } from "react-icons/fi";
+import { SidebarResponsavel } from "./SidebarResponsavel";
 import "../AdminEscolar/RelatorioFinalAdminEscolar.css";
 import relatorio from "../../assets/relatorio.png";
+import { api } from "../../services/api";
+import { useFeedback } from "../../components/Feedback";
+import { Carregando } from "../../components/Campos";
+import { lerErro } from "../../utils/erros";
+import { formatarDataHora } from "../../utils/formatar";
 
-export function RelatorioFinalAlunos(){
-    const [responsavelEmail] = useState(() => {
-        return localStorage.getItem("usuario_email") || "";
-    });
-    const [alunoId, setAlunoId] = useState<string | null>(null);
-    const [buscandoDados, setBuscandoDados] = useState(true);
-    const [mensagemErro, setMensagemErro] = useState("");
+type Situacao = { aluno: { id: string; nomeAluno: string } | null; disponivel: boolean; disponibilizadoEm: string | null };
 
-    useEffect(() => {
-        if (!responsavelEmail) {
-            setBuscandoDados(false);
-            return;
-        }
+/** RF14: o responsável baixa o relatório final do filho quando a escola o disponibiliza. */
+export function RelatorioFinalAlunos() {
+  const feedback = useFeedback();
+  const [situacao, setSituacao] = useState<Situacao | null>(null);
+  const [baixando, setBaixando] = useState(false);
 
-        async function buscarEstudanteVinculado() {
-            try {
-                const resAlunos = await axios.get("http://localhost:3001/alunos");
-                const alunoEncontrado = resAlunos.data.find(
-                    (a: any) => a.emailResponsavel?.toLowerCase().trim() === responsavelEmail.toLowerCase().trim()
-                );
-                if (alunoEncontrado) {
-                    setAlunoId(String(alunoEncontrado.id));
-                } else {
-                    setMensagemErro("Não foi encontrado nenhum aluno associado a sua conta.");
-                }
-            } catch (err) {
-                setMensagemErro("Falha de conexão ao carregar os dados cadastrais.");
-            } finally {
-                setBuscandoDados(false);
-            }
-        }
+  useEffect(() => {
+    api
+      .get("/relatorios/meu")
+      .then((r) => setSituacao(r.data))
+      .catch((e) => {
+        setSituacao({ aluno: null, disponivel: false, disponibilizadoEm: null });
+        feedback.erro(lerErro(e, "Não foi possível consultar o relatório.").mensagem);
+      });
+  }, [feedback]);
 
-        buscarEstudanteVinculado();
-    }, [responsavelEmail]);
+  async function baixar() {
+    setBaixando(true);
+    try {
+      // Download autenticado: o arquivo só vem se o aluno for filho do responsável logado.
+      const resposta = await api.get("/relatorios/meu/arquivo", { responseType: "blob" });
+      const url = URL.createObjectURL(resposta.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Relatorio_Final_${(situacao?.aluno?.nomeAluno ?? "aluno").replace(/\s+/g, "_")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      feedback.sucesso("Download do relatório iniciado.");
+    } catch (e) {
+      const { status } = lerErro(e);
+      feedback.erro(status === 404 ? "Relatório ainda não disponível." : "Não foi possível baixar o relatório. Tente novamente.");
+    } finally {
+      setBaixando(false);
+    }
+  }
 
-    const executarDownloadPdf = () => {
-        if (alunoId) {
-            window.open(`http://localhost:3002/relatorios/relatorio_${alunoId}.pdf`, "_blank");
-        }
-    };
-
-    return (
-        <>
-        <div className="pagRelatorio">
-            <div className="topo">
-                <h1>Relatório Final</h1>
-            </div>
-            <div className="imagem">
-                <img src={relatorio} alt="imagem do relatorio" className="relatorio"/>
-            </div>
-            {mensagemErro && <p className="feedback-erro-txt">{mensagemErro}</p>}
-            <div className="botao-gerar-relatorio">
-                <button onClick={executarDownloadPdf} disabled={buscandoDados || !alunoId}>
-                    {buscandoDados ? "Buscando Registro..." : "Baixar Relatório"}
-                </button>
-            </div>
+  return (
+    <>
+      <main className="pagRelatorio">
+        <div className="topo">
+          <h1>Relatório Final</h1>
         </div>
-        <SidebarResponsavel></SidebarResponsavel>
-        </>
-    );
+
+        {!situacao ? (
+          <Carregando texto="Consultando o relatório..." />
+        ) : (
+          <>
+            <div className="imagem">
+              <img src={relatorio} alt="" className="relatorio" />
+            </div>
+            <div className="relatorio-situacao" role="status">
+              {!situacao.aluno ? (
+                <p className="feedback-erro-txt">Nenhum aluno está vinculado à sua conta. Procure a secretaria da escola.</p>
+              ) : situacao.disponivel ? (
+                <p>
+                  O relatório final de <strong>{situacao.aluno.nomeAluno}</strong> foi disponibilizado pela escola em{" "}
+                  {formatarDataHora(situacao.disponibilizadoEm)}.
+                </p>
+              ) : (
+                <p>
+                  <strong>Relatório ainda não disponível.</strong> A escola ainda não publicou o relatório final de{" "}
+                  {situacao.aluno.nomeAluno}. Volte a esta página mais tarde.
+                </p>
+              )}
+            </div>
+            <div className="botao-gerar-relatorio">
+              <button type="button" onClick={baixar} disabled={baixando || !situacao.disponivel}>
+                <FiDownload aria-hidden="true" /> {baixando ? "Baixando..." : "Baixar relatório (PDF)"}
+              </button>
+            </div>
+          </>
+        )}
+      </main>
+      <SidebarResponsavel />
+    </>
+  );
 }
