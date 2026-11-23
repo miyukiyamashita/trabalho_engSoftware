@@ -1,33 +1,24 @@
-import { Controller, Post, Body, Get, Param, Put } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch } from '@nestjs/common';
 import { AvisosService } from './avisos.service';
-import { Avisos } from '../classes/Avisos';
+import { Usuario } from '../common/decorators';
+import type { UsuarioLogado } from '../common/escopo';
 
 @Controller('avisos')
 export class AvisosController {
-    constructor(private readonly service: AvisosService) {}
+  constructor(private readonly service: AvisosService) {}
 
-    @Post()
-    create(@Body() data: Avisos) {
-        return this.service.create(data);
-    }
+  @Post()
+  create(@Body() body: any, @Usuario() user: UsuarioLogado) {
+    return this.service.create(body, user);
+  }
 
-    @Get()
-    findAll() {
-        return this.service.findAll();
-    }
+  @Get()
+  findAll(@Usuario() user: UsuarioLogado) {
+    return this.service.findAll(user);
+  }
 
-    @Get('responsavel/:email')
-    findAvisosPorResponsavel(@Param('email') email: string) {
-        return this.service.findAvisosPorResponsavel(email);
-    }
-
-    @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.service.findOne(id);
-    }
-
-    @Put(':id')
-    update(@Param('id') id: string, @Body() data: any) {
-        return this.service.update(id, data);
-    }
+  @Patch(':id/leitura')
+  marcarLido(@Param('id') id: string, @Usuario() user: UsuarioLogado) {
+    return this.service.marcarLido(id, user);
+  }
 }
