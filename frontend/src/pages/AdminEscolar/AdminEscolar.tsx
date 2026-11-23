@@ -1,122 +1,68 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import { Link } from "react-router-dom";
 import { SidebarAdminEscolar } from "./SidebarAdminEscolar";
 import "./dashboard.css";
 import { LiaChalkboardTeacherSolid } from "react-icons/lia";
 import { FiUsers, FiBookOpen, FiBell } from "react-icons/fi";
 import { LuGraduationCap } from "react-icons/lu";
+import { api } from "../../services/api";
+import { useAuth } from "../../contexts/AuthContext";
+import { useFeedback } from "../../components/Feedback";
+import { Carregando } from "../../components/Campos";
+import { lerErro } from "../../utils/erros";
+
+type Contagem = { professores: number; alunos: number; turmas: number; disciplinas: number; avisos: number };
 
 export function AdminEscolar() {
-  const [contagem, setContagem] = useState({
-    professores: 0,
-    alunos: 0,
-    turmas: 0,
-    disciplinas: 0,
-    avisos: 0,
-  });
+  const { user } = useAuth();
+  const feedback = useFeedback();
+  const [contagem, setContagem] = useState<Contagem | null>(null);
 
   useEffect(() => {
-    async function carregarDadosEscola() {
-      try {
-        const emailUsuario = localStorage.getItem("usuario_email");
+    api
+      .get("/dashboard")
+      .then((r) => setContagem(r.data))
+      .catch((e) => feedback.erro(lerErro(e, "Não foi possível carregar o painel.").mensagem));
+  }, [feedback]);
 
-        if (!emailUsuario) {
-          console.error("Nenhum usuário logado.");
-          return;
-        }
-
-        const adminResponse = await axios.get(
-          `http://localhost:3001/administradoresEscolares?email=${emailUsuario}`
-        );
-
-        if (adminResponse.data.length > 0) {
-          const idDaEscola = adminResponse.data[0].escolaId;
-
-          const [escolaResponse] = await Promise.all([
-            axios.get(`http://localhost:3001/escolas/${idDaEscola}`),
-          ]);
-
-          const escola = escolaResponse.data;
-
-          setContagem({
-            professores: escola.professores ? escola.professores.length : 0,
-            alunos: escola.alunos ? escola.alunos.length : 0,
-            turmas: escola.turmas ? escola.turmas.length : 0,
-            disciplinas: escola.disciplinas ? escola.disciplinas.length : 0,
-            avisos: escola.avisos ? escola.avisos.length : 0,
-          });
-        }
-      } catch (error) {
-        console.error("Erro ao carregar dados do admin escolar:", error);
-      }
-    }
-
-    carregarDadosEscola();
-  }, []);
+  const cards = contagem
+    ? [
+        { rotulo: "Professores", valor: contagem.professores, para: "/admin-escolar/professores", cor: "bg-roxo", Icone: LiaChalkboardTeacherSolid },
+        { rotulo: "Alunos", valor: contagem.alunos, para: "/admin-escolar/alunos", cor: "bg-verde", Icone: FiUsers },
+        { rotulo: "Turmas", valor: contagem.turmas, para: "/admin-escolar/turmas", cor: "bg-amarelo", Icone: LuGraduationCap },
+        { rotulo: "Disciplinas", valor: contagem.disciplinas, para: "/admin-escolar/disciplinas", cor: "bg-verde", Icone: FiBookOpen },
+        { rotulo: "Avisos", valor: contagem.avisos, para: "/admin-escolar/avisos", cor: "bg-vermelho", Icone: FiBell },
+      ]
+    : [];
 
   return (
     <>
-      <div className="pagAdmEsc">
+      <main className="pagAdmEsc">
         <div className="topo">
           <div className="texto">
             <h1>Dashboard</h1>
+            {user?.escola && <p className="texto-ajuda">{user.escola.nome}</p>}
           </div>
         </div>
 
-        <div className="dashboard-grid-escolar">
-          
-          <div className="card-metric">
-            <div className="icon-box bg-roxo">
-              <LiaChalkboardTeacherSolid />
-            </div>
-            <div className="card-info">
-              <span>Professores</span>
-              <strong>{contagem.professores}</strong>
-            </div>
+        {!contagem ? (
+          <Carregando texto="Carregando o painel da escola..." />
+        ) : (
+          <div className="dashboard-grid-escolar">
+            {cards.map(({ rotulo, valor, para, cor, Icone }) => (
+              <Link to={para} className="card-metric" key={rotulo}>
+                <div className={`icon-box ${cor}`}>
+                  <Icone aria-hidden="true" />
+                </div>
+                <div className="card-info">
+                  <span>{rotulo}</span>
+                  <strong>{valor}</strong>
+                </div>
+              </Link>
+            ))}
           </div>
-
-          <div className="card-metric">
-            <div className="icon-box bg-verde">
-              <FiUsers />
-            </div>
-            <div className="card-info">
-              <span>Alunos</span>
-              <strong>{contagem.alunos}</strong>
-            </div>
-          </div>
-
-          <div className="card-metric">
-            <div className="icon-box bg-amarelo">
-              <LuGraduationCap />
-            </div>
-            <div className="card-info">
-              <span>Turmas</span>
-              <strong>{contagem.turmas}</strong>
-            </div>
-          </div>
-
-          <div className="card-metric">
-            <div className="icon-box bg-verde">
-              <FiBookOpen />
-            </div>
-            <div className="card-info">
-              <span>Disciplinas</span>
-              <strong>{contagem.disciplinas}</strong>
-            </div>
-          </div>
-
-          <div className="card-metric">
-            <div className="icon-box bg-vermelho">
-              <FiBell />
-            </div>
-            <div className="card-info">
-              <span>Avisos</span>
-              <strong>{contagem.avisos}</strong>
-            </div>
-          </div>
-
-        </div>
-      </div>
+        )}
+      </main>
 
       <SidebarAdminEscolar />
     </>
