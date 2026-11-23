@@ -1,22 +1,27 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { FrequenciaService } from './frequencia.service';
-import { Frequencia } from '../classes/Frequencia';
+import { Usuario, Roles } from '../common/decorators';
+import type { UsuarioLogado } from '../common/escopo';
+import { TipoUsuario } from '../classes/tipo-usuario';
 
 @Controller('frequencia')
 export class FrequenciaController {
-    constructor(private readonly service: FrequenciaService) {}
+  constructor(private readonly service: FrequenciaService) {}
 
-    @Get('buscar')
-    findByTurmaEDisciplinaEData(
-        @Query('turmaId') turmaId: string, 
-        @Query('disciplinaId') disciplinaId: string,
-        @Query('data') data: string
-    ) {
-        return this.service.findByTurmaEDisciplinaEData(turmaId, disciplinaId, data);
-    }
+  @Get('buscar')
+  @Roles(TipoUsuario.ADMIN_ESCOLAR, TipoUsuario.PROF)
+  buscar(
+    @Query('turmaId') turmaId: string,
+    @Query('disciplinaId') disciplinaId: string,
+    @Query('data') data: string,
+    @Usuario() user: UsuarioLogado,
+  ) {
+    return this.service.buscar(turmaId, disciplinaId, data, user);
+  }
 
-    @Post('registrar')
-    registrarFrequencia(@Body() body: Frequencia) {
-        return this.service.registrarFrequencia(body);
-    }
+  @Post('registrar')
+  @Roles(TipoUsuario.PROF)
+  registrar(@Body() body: any, @Usuario() user: UsuarioLogado) {
+    return this.service.registrar(body, user);
+  }
 }

@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
 import { DbModule } from './common/db.service';
 import { AcessoModule } from './common/acesso.service';
 import { UsuariosModule } from './usuarios/usuarios.service';
@@ -11,7 +14,6 @@ import { SolicitacaoCadastroModule } from './solicitacao-cadastro/solicitacao-ca
 import { AlunosModule } from './alunos/alunos.module';
 import { EscolasModule } from './escolas/escolas.module';
 import { AvisosModule } from './avisos/avisos.module';
-import { EmailModule } from './email/email.module';
 import { AdministradoresEscolaresModule } from './administrador-escolar/administrador-escolar.module';
 import { TurmasModule } from './turmas/turmas.module';
 import { DisciplinasModule } from './disciplinas/disciplinas.module';
@@ -19,6 +21,7 @@ import { SolicitacaoEdicaoModule } from './solicitacao-edicao/solicitacao-edicao
 import { SolicitacaoRemocaoModule } from './solicitacao-remocao/solicitacao-remocao.module';
 import { NotasModule } from './notas/notas.module';
 import { FrequenciaModule } from './frequencia/frequencia.module';
+import { PainelModule } from './painel/painel.controller';
 
 @Module({
   imports: [
@@ -34,7 +37,6 @@ import { FrequenciaModule } from './frequencia/frequencia.module';
     AlunosModule,
     EscolasModule,
     AvisosModule,
-    EmailModule,
     AdministradoresEscolaresModule,
     TurmasModule,
     DisciplinasModule,
@@ -42,8 +44,13 @@ import { FrequenciaModule } from './frequencia/frequencia.module';
     SolicitacaoRemocaoModule,
     NotasModule,
     FrequenciaModule,
+    PainelModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
 })
 export class AppModule {}
