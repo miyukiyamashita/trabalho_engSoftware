@@ -1,6 +1,6 @@
 .paginaAdminSistema {
     min-height: 100vh;
-    width: calc(100vw - 280px);
+    width: calc(100% - 280px);
     margin-left: 280px;
     box-sizing: border-box;
     padding: 40px;
@@ -99,4 +99,14 @@
     font-weight: 600;
     color: #000000;
     line-height: 1;
+}
+.paginaAdminSistema .texto {
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.paginaAdminSistema .botoesSol {
+    padding-left: 0;
+    flex-wrap: wrap;
+    gap: 8px;
 }
