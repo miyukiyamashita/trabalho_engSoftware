@@ -1,4 +1,1 @@
-export class LoginDto {
-    email!: string;
-    senha!: string;
-}
+export { LoginDto } from '../common/dtos';

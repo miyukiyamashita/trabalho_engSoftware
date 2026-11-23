@@ -2,6 +2,7 @@ import { Controller, Get, Param, Delete, Post, Patch, Body } from '@nestjs/commo
 import { EscolasService } from './escolas.service';
 import { Usuario, Roles } from '../common/decorators';
 import type { UsuarioLogado } from '../common/escopo';
+import { EscolaDto, EscolaUpdateDto } from '../common/dtos';
 import { TipoUsuario } from '../classes/tipo-usuario';
 
 @Controller('escolas')
@@ -28,13 +29,13 @@ export class EscolasController {
 
   @Post()
   @Roles(TipoUsuario.ADMIN_SISTEMA)
-  create(@Body() body: any) {
+  create(@Body() body: EscolaDto) {
     return this.service.criarComAdmin(body);
   }
 
   @Patch(':id')
   @Roles(TipoUsuario.ADMIN_SISTEMA)
-  update(@Param('id') id: string, @Body() body: any) {
+  update(@Param('id') id: string, @Body() body: EscolaUpdateDto) {
     return this.service.update(id, body);
   }
 

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/commo
 import { DisciplinasService } from './disciplinas.service';
 import { Usuario, Roles } from '../common/decorators';
 import type { UsuarioLogado } from '../common/escopo';
+import { DisciplinaDto, DisciplinaUpdateDto } from '../common/dtos';
 import { TipoUsuario } from '../classes/tipo-usuario';
 
 @Controller('disciplinas')
@@ -16,7 +17,7 @@ export class DisciplinasController {
 
   @Post()
   @Roles(TipoUsuario.ADMIN_ESCOLAR)
-  create(@Body() body: any, @Usuario() user: UsuarioLogado) {
+  create(@Body() body: DisciplinaDto, @Usuario() user: UsuarioLogado) {
     return this.service.create(body, user);
   }
 
@@ -28,7 +29,7 @@ export class DisciplinasController {
 
   @Patch(':id')
   @Roles(TipoUsuario.ADMIN_ESCOLAR)
-  update(@Param('id') id: string, @Body() body: any, @Usuario() user: UsuarioLogado) {
+  update(@Param('id') id: string, @Body() body: DisciplinaUpdateDto, @Usuario() user: UsuarioLogado) {
     return this.service.update(id, body, user);
   }
 

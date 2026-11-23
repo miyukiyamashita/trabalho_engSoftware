@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Patch, Query } from '@nestjs/common
 import { SolicitacaoRemocaoService } from './solicitacao-remocao.service';
 import { Usuario, Roles } from '../common/decorators';
 import type { UsuarioLogado } from '../common/escopo';
+import { SolicitacaoRemocaoDto, DecisaoDto } from '../common/dtos';
 import { TipoUsuario } from '../classes/tipo-usuario';
 
 @Controller('solicitacoes-remocao')
@@ -10,7 +11,7 @@ export class SolicitacaoRemocaoController {
 
   @Post()
   @Roles(TipoUsuario.ADMIN_ESCOLAR)
-  create(@Body() data: any, @Usuario() user: UsuarioLogado) {
+  create(@Body() data: SolicitacaoRemocaoDto, @Usuario() user: UsuarioLogado) {
     return this.service.create(data, user);
   }
 
@@ -28,7 +29,7 @@ export class SolicitacaoRemocaoController {
 
   @Patch(':id/status')
   @Roles(TipoUsuario.ADMIN_SISTEMA)
-  updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return this.service.decidir(id, status);
+  updateStatus(@Param('id') id: string, @Body() decisao: DecisaoDto) {
+    return this.service.decidir(id, decisao.status);
   }
 }

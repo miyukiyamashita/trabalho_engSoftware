@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { NotasService } from './notas.service';
 import { Usuario, Roles } from '../common/decorators';
 import type { UsuarioLogado } from '../common/escopo';
+import { LancarNotasDto } from '../common/dtos';
 import { TipoUsuario } from '../classes/tipo-usuario';
 
 @Controller('notas')
@@ -20,7 +21,7 @@ export class NotasController {
 
   @Post('lancar')
   @Roles(TipoUsuario.PROF)
-  lancarNotas(@Body() body: any, @Usuario() user: UsuarioLogado) {
+  lancarNotas(@Body() body: LancarNotasDto, @Usuario() user: UsuarioLogado) {
     return this.service.lancar(body, user);
   }
 }

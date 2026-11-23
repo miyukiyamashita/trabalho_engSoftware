@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Patch, Query } from '@nestjs/common
 import { SolicitacaoCadastroService } from './solicitacao-cadastro.service';
 import { Public, Roles } from '../common/decorators';
 import { TipoUsuario } from '../classes/tipo-usuario';
+import { SolicitacaoCadastroDto, DecisaoDto } from '../common/dtos';
 
 @Controller('solicitacoes-cadastro')
 export class SolicitacaoCadastroController {
@@ -9,7 +10,7 @@ export class SolicitacaoCadastroController {
 
   @Public()
   @Post()
-  create(@Body() data: any) {
+  create(@Body() data: SolicitacaoCadastroDto) {
     return this.service.create(data);
   }
 
@@ -33,7 +34,7 @@ export class SolicitacaoCadastroController {
 
   @Patch(':id/status')
   @Roles(TipoUsuario.ADMIN_SISTEMA)
-  updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return this.service.decidir(id, status);
+  updateStatus(@Param('id') id: string, @Body() decisao: DecisaoDto) {
+    return this.service.decidir(id, decisao.status);
   }
 }

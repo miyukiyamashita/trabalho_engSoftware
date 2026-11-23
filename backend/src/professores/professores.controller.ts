@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/commo
 import { ProfessoresService } from './professores.service';
 import { Usuario, Roles } from '../common/decorators';
 import type { UsuarioLogado } from '../common/escopo';
+import { ProfessorDto, ProfessorUpdateDto } from '../common/dtos';
 import { TipoUsuario } from '../classes/tipo-usuario';
 
 @Roles(TipoUsuario.ADMIN_ESCOLAR)
@@ -15,7 +16,7 @@ export class ProfessoresController {
   }
 
   @Post()
-  create(@Body() body: any, @Usuario() user: UsuarioLogado) {
+  create(@Body() body: ProfessorDto, @Usuario() user: UsuarioLogado) {
     return this.service.create(body, user);
   }
 
@@ -25,7 +26,7 @@ export class ProfessoresController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any, @Usuario() user: UsuarioLogado) {
+  update(@Param('id') id: string, @Body() body: ProfessorUpdateDto, @Usuario() user: UsuarioLogado) {
     return this.service.update(id, body, user);
   }
 
