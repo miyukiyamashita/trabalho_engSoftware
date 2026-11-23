@@ -256,3 +256,61 @@
     -webkit-appearance: auto;
     -moz-appearance: auto;
 }
+/* Ajustes de acessibilidade e responsividade (T30/T31) */
+.container-filtros-notas {
+    flex-wrap: wrap;
+    gap: 20px 32px;
+}
+
+.grupo-filtro {
+    width: min(260px, 100%);
+}
+
+.input-nota-boletim:focus-visible {
+    outline: 3px solid #ffb703;
+    outline-offset: 1px;
+}
+
+.input-nota-boletim {
+    border: 1px solid #d5dae3;
+    border-radius: 8px;
+}
+
+.nota-parcial {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6b7280;
+}
+
+.texto-presenca {
+    display: block;
+    font-size: 0.8rem;
+    color: #4b5563;
+    margin-top: 4px;
+}
+
+.tabela-boletim-escolar th[scope="row"] {
+    text-align: left;
+    font-weight: normal;
+}
+
+.secao-botao-salvar.acoes-formulario {
+    justify-content: flex-end;
+    margin-top: 0;
+}
+
+.container-tabela-layout .barra-filtros {
+    padding: 16px 20px 0;
+    align-items: center;
+}
+
+.container-tabela-layout .erro-campo {
+    font-size: 12px;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .grupo-filtro {
+        width: 100%;
+    }
+}

@@ -1,330 +1,218 @@
 import { SidebarProfessor } from "./SidebarProfessor";
 import "./Notas.css";
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useEffect, useMemo, useState } from "react";
+import { FiCheckSquare, FiSquare } from "react-icons/fi";
+import { api } from "../../services/api";
+import { useFeedback } from "../../components/Feedback";
+import { useConfirm } from "../../components/ConfirmDialog";
+import { Carregando, ListaVazia } from "../../components/Campos";
+import { lerErro } from "../../utils/erros";
+import { formatarData, hojeISO } from "../../utils/formatar";
 
-interface Turma {
-    id: string;
-    nomeTurma: string;
-    disciplinas?: string[]; 
-}
-
-interface Disciplina {
-    id: string;
-    nomeDisciplina: string;
-    nome?: string;
-    professorId?: string;
-}
-
-interface AlunoFrequencia {
-    id: string;
-    nomeAluno: string;
-    cpfAluno: string;
-}
-
+/** RF12: o professor registra a frequência das turmas em que leciona. */
 export function Frequencia() {
-    const [professorId, setProfessorId] = useState<string>("");
-    const [catalogoDisciplinas, setCatalogoDisciplinas] = useState<Disciplina[]>([]);
-    const [turmas, setTurmas] = useState<Turma[]>([]);
-    const [turmaSelecionada, setTurmaSelecionada] = useState<string>("");
-    
-    const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
-    const [disciplinaSelecionada, setDisciplinaSelecionada] = useState<string>("");
+  const feedback = useFeedback();
+  const { confirmar } = useConfirm();
+  const [turmas, setTurmas] = useState<any[]>([]);
+  const [disciplinas, setDisciplinas] = useState<any[]>([]);
+  const [turmaId, setTurmaId] = useState("");
+  const [disciplinaId, setDisciplinaId] = useState("");
+  const [data, setData] = useState(hojeISO());
+  const [alunos, setAlunos] = useState<any[] | null>(null);
+  const [presencas, setPresencas] = useState<Record<string, boolean>>({});
+  const [registroExistente, setRegistroExistente] = useState<any>(null);
+  const [salvando, setSalvando] = useState(false);
 
-    const [dataSelecionada, setDataSelecionada] = useState<string>(
-        new Date().toISOString().split("T")[0]
-    );
-    
-    const [alunos, setAlunos] = useState<AlunoFrequencia[]>([]);
-    const [presencasForm, setPresencasForm] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    Promise.all([api.get("/turmas"), api.get("/disciplinas")])
+      .then(([t, d]) => {
+        setTurmas(t.data);
+        setDisciplinas(d.data);
+      })
+      .catch((e) => feedback.erro(lerErro(e, "Não foi possível carregar suas turmas.").mensagem));
+  }, [feedback]);
 
-    const [modal, setModal] = useState<{
-        visivel: boolean;
-        tipo: "sucesso" | "erro";
-        mensagem: string;
-    }>({
-        visivel: false,
-        tipo: "sucesso",
-        mensagem: "",
-    });
+  const disciplinasDaTurma = useMemo(() => {
+    const turma = turmas.find((t) => String(t.id) === turmaId);
+    const ids = (turma?.disciplinas ?? []).map(String);
+    return disciplinas.filter((d) => ids.includes(String(d.id)));
+  }, [turmas, disciplinas, turmaId]);
 
-    useEffect(() => {
-        async function iniciarDados() {
-            try {
-                const emailUsuario = localStorage.getItem("usuario_email");
-                if (!emailUsuario) {
-                    console.error("Nenhum professor logado.");
-                    return;
-                }
+  useEffect(() => {
+    setDisciplinaId(disciplinasDaTurma.length === 1 ? String(disciplinasDaTurma[0].id) : "");
+  }, [disciplinasDaTurma]);
 
-                const resProf = await axios.get(`http://localhost:3001/professores?email=${emailUsuario}`);
-                
-                if (resProf.data.length > 0) {
-                    const idDoProf = resProf.data[0].id;
-                    setProfessorId(idDoProf);
+  async function carregarChamada() {
+    setAlunos(null);
+    try {
+      const [a, f] = await Promise.all([
+        api.get("/alunos", { params: { turmaId } }),
+        api.get("/frequencia/buscar", { params: { turmaId, disciplinaId, data } }),
+      ]);
+      const registro = f.data || null;
+      const estrutura: Record<string, boolean> = {};
+      a.data.forEach((aluno: any) => {
+        const r = registro?.chamada?.find((c: any) => String(c.alunoId) === String(aluno.id));
+        estrutura[aluno.id] = r ? Boolean(r.presente) : true;
+      });
+      setRegistroExistente(registro);
+      setPresencas(estrutura);
+      setAlunos(a.data);
+    } catch (e) {
+      setAlunos([]);
+      feedback.erro(lerErro(e, "Não foi possível carregar a chamada.").mensagem);
+    }
+  }
 
-                    const [resDisc, resTurmas] = await Promise.all([
-                        axios.get("http://localhost:3000/disciplinas"),
-                        axios.get("http://localhost:3000/turmas")
-                    ]);
+  useEffect(() => {
+    if (turmaId && disciplinaId && data) carregarChamada();
+    else setAlunos(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turmaId, disciplinaId, data]);
 
-                    const todasDisciplinas = resDisc.data;
-                    setCatalogoDisciplinas(todasDisciplinas);
+  const totalPresentes = Object.values(presencas).filter(Boolean).length;
 
-                    const disciplinasDoProf = todasDisciplinas.filter(
-                        (d: any) => String(d.professorId) === String(idDoProf)
-                    );
-                    const idsDisciplinasDoProf = disciplinasDoProf.map((d: any) => String(d.id));
+  function marcarTodos(valor: boolean) {
+    setPresencas(Object.fromEntries((alunos ?? []).map((a) => [a.id, valor])));
+  }
 
-                    const turmasFiltradas = resTurmas.data.filter((turma: any) => {
-                        const disciplinasDaTurma = turma.disciplinas || [];
-                        
-                        return disciplinasDaTurma.some((disc: any) => {
-                            const idDisc = typeof disc === "object" && disc !== null ? disc.id : disc;
-                            
-                            return idsDisciplinasDoProf.includes(String(idDisc));
-                        });
-                    });
-                    
-                    setTurmas(turmasFiltradas);
-                }
-            } catch (error) {
-                console.error("Erro ao iniciar dados de frequência:", error);
-                acionarModal("erro", "Erro ao carregar os dados iniciais.");
-            }
-        }
-        iniciarDados();
-    }, []);
-
-    useEffect(() => {
-        if (turmaSelecionada) {
-            buscarDisciplinasDaTurma(turmaSelecionada);
-            setDisciplinaSelecionada(""); 
-        } else {
-            setDisciplinas([]);
-            setDisciplinaSelecionada("");
-        }
-    }, [turmaSelecionada]);
-
-    useEffect(() => {
-        if (turmaSelecionada && dataSelecionada && disciplinaSelecionada) {
-            buscarAlunosEChamada(turmaSelecionada, dataSelecionada, disciplinaSelecionada);
-        } else {
-            setAlunos([]);
-            setPresencasForm({});
-        }
-    }, [turmaSelecionada, dataSelecionada, disciplinaSelecionada]);
-
-    async function buscarDisciplinasDaTurma(turmaId: string) {
-        try {
-            const responseTurma = await axios.get(`http://localhost:3001/turmas/${turmaId}`);
-            const idsDisciplinas: string[] = responseTurma.data.disciplinas || [];
-
-            const filtradas = catalogoDisciplinas.filter((d: any) => 
-                idsDisciplinas.map(String).includes(String(d.id)) && 
-                String(d.professorId) === String(professorId)
-            );
-            setDisciplinas(filtradas);
-        } catch (error) {
-            console.error(error);
-            acionarModal("erro", "Erro ao filtrar as disciplinas da turma.");
-        }
+  async function salvarFrequencia(e: React.FormEvent) {
+    e.preventDefault();
+    const nomeDisciplina = disciplinasDaTurma.find((d) => String(d.id) === disciplinaId)?.nomeDisciplina ?? "";
+    const ausentes = (alunos ?? []).filter((a) => !presencas[a.id]).map((a) => a.nomeAluno);
+    if (registroExistente) {
+      const ok = await confirmar({
+        titulo: "Substituir a chamada já registrada?",
+        mensagem: `Já existe chamada de ${nomeDisciplina} em ${formatarData(data)}. Ela será substituída por esta:`,
+        detalhes: [
+          ["Presentes", `${totalPresentes} de ${alunos?.length ?? 0}`],
+          ["Ausentes", ausentes.join(", ") || "nenhum"],
+        ],
+        textoConfirmar: "Substituir chamada",
+      });
+      if (!ok) return;
     }
 
-    async function buscarAlunosEChamada(turmaId: string, data: string, disciplinaId: string) {
-        try {
-            const responseTurma = await axios.get(`http://localhost:3001/turmas/${turmaId}`);
-            const idsAlunosDaTurma: string[] = responseTurma.data.alunos || [];
-
-            const responseTodosAlunos = await axios.get(`http://localhost:3000/alunos`);
-            
-            const listaAlunosFiltrados = responseTodosAlunos.data.filter((aluno: any) => 
-                idsAlunosDaTurma.includes(aluno.id)
-            );
-            setAlunos(listaAlunosFiltrados);
-
-            const responseChamada = await axios.get(
-                `http://localhost:3000/frequencia/buscar?turmaId=${turmaId}&disciplinaId=${disciplinaId}&data=${data}`
-            );
-            const chamadaSalva = responseChamada.data;
-
-            const estruturaPresenca: Record<string, boolean> = {};
-
-            listaAlunosFiltrados.forEach((aluno: AlunoFrequencia) => {
-                if (chamadaSalva && chamadaSalva.chamada) {
-                    const registro = chamadaSalva.chamada.find((c: any) => c.alunoId === aluno.id);
-                    estruturaPresenca[aluno.id] = registro ? registro.presente : false;
-                } else {
-                    estruturaPresenca[aluno.id] = false; 
-                }
-            });
-
-            setPresencasForm(estruturaPresenca);
-        } catch (error) {
-            console.error(error);
-            acionarModal("erro", "Erro ao carregar os registros de frequência.");
-        }
+    setSalvando(true);
+    try {
+      await api.post("/frequencia/registrar", {
+        turmaId,
+        disciplinaId,
+        data,
+        chamada: (alunos ?? []).map((a) => ({ alunoId: String(a.id), presente: Boolean(presencas[a.id]) })),
+      });
+      feedback.sucesso(
+        `Frequência de ${formatarData(data)} salva: ${totalPresentes} presente(s) e ${ausentes.length} ausente(s).`
+      );
+      await carregarChamada();
+    } catch (erro) {
+      feedback.erro(lerErro(erro, "Não foi possível salvar a chamada.").mensagem);
+    } finally {
+      setSalvando(false);
     }
+  }
 
-    function handleCheckboxChange(alunoId: string) {
-        setPresencasForm((prev) => ({
-            ...prev,
-            [alunoId]: !prev[alunoId]
-        }));
-    }
+  return (
+    <>
+      <main className="conteudo-principal">
+        <div className="cabecalho-abas">
+          <h1 className="titulo-pagina">Registro de frequência</h1>
+        </div>
+        <p className="texto-ajuda">
+          Escolha a turma, a disciplina e a data da aula. Todos começam marcados como presentes: desmarque quem faltou e
+          salve.
+        </p>
 
-    function acionarModal(tipo: "sucesso" | "erro", mensagem: string) {
-        setModal({ visivel: true, tipo, mensagem });
-        setTimeout(() => {
-            setModal((prev) => ({ ...prev, visivel: false }));
-        }, 3000);
-    }
+        <div className="container-filtros-notas">
+          <div className="grupo-filtro">
+            <label htmlFor="select-turma">Turma:</label>
+            <select id="select-turma" value={turmaId} onChange={(e) => setTurmaId(e.target.value)} className="select-filtro-custom">
+              <option value="">-- Escolha uma turma --</option>
+              {turmas.map((t) => (
+                <option key={t.id} value={t.id}>{t.nomeTurma} - {t.turno}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grupo-filtro">
+            <label htmlFor="select-disciplina">Disciplina:</label>
+            <select id="select-disciplina" value={disciplinaId} onChange={(e) => setDisciplinaId(e.target.value)} className="select-filtro-custom" disabled={!turmaId}>
+              <option value="">-- Escolha uma disciplina --</option>
+              {disciplinasDaTurma.map((d) => (
+                <option key={d.id} value={d.id}>{d.nomeDisciplina}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grupo-filtro">
+            <label htmlFor="input-data">Data da aula:</label>
+            <input type="date" id="input-data" value={data} max={hojeISO()} onChange={(e) => setData(e.target.value)} className="select-filtro-custom input-data-custom" />
+          </div>
+        </div>
 
-    async function salvarFrequencia(e: React.FormEvent) {
-        e.preventDefault();
-
-        if (!turmaSelecionada || !dataSelecionada || !disciplinaSelecionada) {
-            acionarModal("erro", "Preencha todos os campos antes de salvar.");
-            return;
-        }
-
-        try {
-            const payload = {
-                turmaId: turmaSelecionada,
-                disciplinaId: disciplinaSelecionada,
-                data: dataSelecionada,
-                chamada: Object.entries(presencasForm).map(([alunoId, presente]) => ({
-                    alunoId,
-                    presente
-                }))
-            };
-
-            await axios.post("http://localhost:3000/frequencia/registrar", payload);
-
-            acionarModal("sucesso", "Frequência salva com sucesso!");
-            buscarAlunosEChamada(turmaSelecionada, dataSelecionada, disciplinaSelecionada);
-        } catch (error) {
-            console.error(error);
-            acionarModal("erro", "Erro ao salvar a lista de chamada.");
-        }
-    }
-
-    return (
-        <>
-            {modal.visivel && (
-                <div className="modal-overlay">
-                    <div className={`modal-caixa modal-${modal.tipo}`}>
-                        <p>{modal.mensagem}</p>
-                    </div>
-                </div>
-            )}
-
-            <div className="conteudo-principal">
-                <div className="cabecalho-abas">
-                    <h1 className="titulo-pagina">Registro de Frequência</h1>
-                </div>
-
-                <div className="container-filtros-notas">
-                    <div className="grupo-filtro">
-                        <label htmlFor="select-turma">Turma:</label>
-                        <select
-                            id="select-turma"
-                            value={turmaSelecionada}
-                            onChange={(e) => setTurmaSelecionada(e.target.value)}
-                            className="select-filtro-custom"
-                        >
-                            <option value="">-- Escolha uma Turma --</option>
-                            {turmas.map((turma) => (
-                                <option key={turma.id} value={turma.id}>
-                                    {turma.nomeTurma}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="grupo-filtro">
-                        <label htmlFor="select-disciplina">Disciplina:</label>
-                        <select
-                            id="select-disciplina"
-                            value={disciplinaSelecionada}
-                            onChange={(e) => setDisciplinaSelecionada(e.target.value)}
-                            className="select-filtro-custom"
-                            disabled={!turmaSelecionada}
-                        >
-                            <option value="">-- Escolha uma Disciplina --</option>
-                            {disciplinas.map((disc) => (
-                                <option key={disc.id} value={disc.id}>
-                                    {disc.nomeDisciplina || disc.nome}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="grupo-filtro">
-                        <label htmlFor="input-data">Data:</label>
-                        <input
-                            type="date"
-                            id="input-data"
-                            value={dataSelecionada}
-                            onChange={(e) => setDataSelecionada(e.target.value)}
-                            className="select-filtro-custom input-data-custom"
-                        />
-                    </div>
-                </div>
-
-                {turmaSelecionada && dataSelecionada && disciplinaSelecionada && (
-                    <div className="container-tabela-layout">
-                        {alunos.length === 0 ? (
-                            <p className="mensagem-lista-vazia">
-                                Nenhum aluno cadastrado nesta turma.
-                            </p>
-                        ) : (
-                            <form onSubmit={salvarFrequencia}>
-                                <div className="tabela-wrapper-scroll">
-                                    <table className="tabela-boletim-escolar">
-                                        <thead>
-                                            <tr>
-                                                <th className="col-aluno th-col-aluno-frequencia">Aluno</th>
-                                                <th className="th-col-matricula-frequencia">Matrícula</th>
-                                                <th className="th-col-presenca-frequencia">Presente?</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {alunos.map((aluno) => {
-                                                const estaPresente = !!presencasForm[aluno.id];
-                                                return (
-                                                    <tr key={aluno.id}>
-                                                        <td>
-                                                            <div className="nome-aluno-tabela nome-aluno-frequencia">
-                                                                {aluno.nomeAluno}
-                                                            </div>
-                                                        </td>
-                                                        <td className="celula-matricula-frequencia">
-                                                            {aluno.cpfAluno}
-                                                        </td>
-                                                        <td className="celula-checkbox-frequencia">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={estaPresente}
-                                                                onChange={() => handleCheckboxChange(aluno.id)}
-                                                                className={`checkbox-frequencia-base ${!estaPresente ? 'checkbox-cinza-desmarcado' : ''}`}
-                                                            />
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="secao-botao-salvar">
-                                    <button type="submit" className="btn-salvar-boletim">Salvar Frequência</button>
-                                </div>
-                            </form>
-                        )}
-                    </div>
-                )}
+        {!turmaId || !disciplinaId || !data ? (
+          <ListaVazia texto="Escolha a turma, a disciplina e a data para fazer a chamada." />
+        ) : alunos === null ? (
+          <Carregando texto="Carregando a chamada..." />
+        ) : alunos.length === 0 ? (
+          <ListaVazia texto="Nenhum aluno cadastrado nesta turma." />
+        ) : (
+          <form onSubmit={salvarFrequencia} className="container-tabela-layout" noValidate>
+            <div className="barra-filtros">
+              <button type="button" className="botao-secundario" onClick={() => marcarTodos(true)}>
+                <FiCheckSquare aria-hidden="true" /> Marcar todos presentes
+              </button>
+              <button type="button" className="botao-secundario" onClick={() => marcarTodos(false)}>
+                <FiSquare aria-hidden="true" /> Desmarcar todos
+              </button>
+              <span className="texto-ajuda" role="status">
+                {totalPresentes} de {alunos.length} presentes
+                {registroExistente ? " · já existe chamada salva nesta data" : " · chamada ainda não salva"}
+              </span>
             </div>
-            <SidebarProfessor />
-        </>
-    );
+            <div className="tabela-wrapper-scroll">
+              <table className="tabela-boletim-escolar">
+                <thead>
+                  <tr>
+                    <th scope="col" className="col-aluno th-col-aluno-frequencia">Aluno</th>
+                    <th scope="col" className="th-col-matricula-frequencia">CPF</th>
+                    <th scope="col" className="th-col-presenca-frequencia">Presente?</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alunos.map((aluno) => {
+                    const presente = Boolean(presencas[aluno.id]);
+                    return (
+                      <tr key={aluno.id}>
+                        <th scope="row">
+                          <label htmlFor={`presenca-${aluno.id}`} className="nome-aluno-tabela nome-aluno-frequencia">
+                            {aluno.nomeAluno}
+                          </label>
+                        </th>
+                        <td className="celula-matricula-frequencia">{aluno.cpfAluno}</td>
+                        <td className="celula-checkbox-frequencia">
+                          <input
+                            id={`presenca-${aluno.id}`}
+                            type="checkbox"
+                            checked={presente}
+                            onChange={() => setPresencas((p) => ({ ...p, [aluno.id]: !p[aluno.id] }))}
+                            className={`checkbox-frequencia-base ${!presente ? "checkbox-cinza-desmarcado" : ""}`}
+                          />
+                          <span className="texto-presenca">{presente ? "Presente" : "Ausente"}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="secao-botao-salvar">
+              <button type="submit" className="btn-salvar-boletim" disabled={salvando}>
+                {salvando ? "Salvando..." : "Salvar frequência"}
+              </button>
+            </div>
+          </form>
+        )}
+      </main>
+      <SidebarProfessor />
+    </>
+  );
 }

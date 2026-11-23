@@ -1,404 +1,282 @@
 import { SidebarProfessor } from "./SidebarProfessor";
 import "./Notas.css";
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../../services/api";
+import { useFeedback } from "../../components/Feedback";
+import { useConfirm } from "../../components/ConfirmDialog";
+import { CampoErro, Carregando, ListaVazia } from "../../components/Campos";
+import { lerErro } from "../../utils/erros";
+import {
+  BIMESTRES,
+  NOME_BIMESTRE,
+  NOTA_MAX_BIMESTRE,
+  formatarNota,
+  notaFinal,
+  valorNota,
+  type Bimestre,
+} from "../../utils/notas";
 
-interface Turma {
-    id: string;
-    nomeTurma: string;
-}
+type LinhaNotas = Record<Bimestre, string>;
+const vazio: LinhaNotas = { bim1: "", bim2: "", bim3: "", bim4: "" };
 
-interface AlunoNota {
-    id: string;
-    nomeAluno: string;
-    cpfAluno: string;
-}
-
-interface NotasBimestre {
-    bim1: string;
-    bim2: string;
-    bim3: string;
-    bim4: string;
-}
-
-interface DisciplinaCatalogo {
-    id: string;
-    nomeDisciplina?: string;
-    nome?: string;
-    professorId?: string;
-}
-
+/** RF11: o professor registra e atualiza notas nas turmas/disciplinas em que leciona. */
 export function Notas() {
-    const [turmas, setTurmas] = useState<Turma[]>([]);
-    const [professorId, setProfessorId] = useState<string>("");
-    const [turmaSelecionada, setTurmaSelecionada] = useState<string>("");
-    
-    const [catalogoDisciplinas, setCatalogoDisciplinas] = useState<DisciplinaCatalogo[]>([]);
-    const [disciplinasFiltradas, setDisciplinasFiltradas] = useState<DisciplinaCatalogo[]>([]);
-    const [disciplinaSelecionada, setDisciplinaSelecionada] = useState<string>("");
-    
-    const [alunos, setAlunos] = useState<AlunoNota[]>([]);
-    const [notasForm, setNotasForm] = useState<Record<string, NotasBimestre>>({});
+  const feedback = useFeedback();
+  const { confirmar } = useConfirm();
+  const [turmas, setTurmas] = useState<any[]>([]);
+  const [disciplinas, setDisciplinas] = useState<any[]>([]);
+  const [turmaId, setTurmaId] = useState("");
+  const [disciplinaId, setDisciplinaId] = useState("");
+  const [bimestre, setBimestre] = useState<Bimestre | "">("");
+  const [busca, setBusca] = useState("");
+  const [alunos, setAlunos] = useState<any[] | null>(null);
+  const [salvas, setSalvas] = useState<Record<string, LinhaNotas>>({});
+  const [notas, setNotas] = useState<Record<string, LinhaNotas>>({});
+  const [erros, setErros] = useState<Record<string, string>>({});
+  const [salvando, setSalvando] = useState(false);
 
-    const [modal, setModal] = useState<{
-        visivel: boolean;
-        tipo: "sucesso" | "erro";
-        mensagem: string;
-    }>({
-        visivel: false,
-        tipo: "sucesso",
-        mensagem: "",
+  useEffect(() => {
+    Promise.all([api.get("/turmas"), api.get("/disciplinas")])
+      .then(([t, d]) => {
+        setTurmas(t.data);
+        setDisciplinas(d.data);
+      })
+      .catch((e) => feedback.erro(lerErro(e, "Não foi possível carregar suas turmas.").mensagem));
+  }, [feedback]);
+
+  // Só as disciplinas do professor que fazem parte da turma escolhida.
+  const disciplinasDaTurma = useMemo(() => {
+    const turma = turmas.find((t) => String(t.id) === turmaId);
+    const ids = (turma?.disciplinas ?? []).map(String);
+    return disciplinas.filter((d) => ids.includes(String(d.id)));
+  }, [turmas, disciplinas, turmaId]);
+
+  useEffect(() => {
+    setDisciplinaId(disciplinasDaTurma.length === 1 ? String(disciplinasDaTurma[0].id) : "");
+  }, [disciplinasDaTurma]);
+
+  async function carregarNotas(tId: string, dId: string) {
+    setAlunos(null);
+    setErros({});
+    try {
+      const [a, n] = await Promise.all([
+        api.get("/alunos", { params: { turmaId: tId } }),
+        api.get("/notas", { params: { turmaId: tId, disciplinaId: dId } }),
+      ]);
+      const estrutura: Record<string, LinhaNotas> = {};
+      a.data.forEach((aluno: any) => {
+        const nota = n.data.find((x: any) => String(x.alunoId) === String(aluno.id));
+        estrutura[aluno.id] = Object.fromEntries(
+          BIMESTRES.map((b) => [b, nota?.[b] === null || nota?.[b] === undefined ? "" : formatarNota(nota[b])])
+        ) as LinhaNotas;
+      });
+      setAlunos(a.data);
+      setSalvas(estrutura);
+      setNotas(estrutura);
+    } catch (e) {
+      setAlunos([]);
+      feedback.erro(lerErro(e, "Não foi possível carregar alunos e notas.").mensagem);
+    }
+  }
+
+  useEffect(() => {
+    if (turmaId && disciplinaId) carregarNotas(turmaId, disciplinaId);
+    else setAlunos(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turmaId, disciplinaId]);
+
+  // Valida enquanto digita: em vez de ignorar valores fora do intervalo, explica o problema (H5/H9).
+  function alterarNota(alunoId: string, b: Bimestre, valor: string) {
+    const limpo = valor.replace(/[^\d.,]/g, "");
+    setNotas((prev) => ({ ...prev, [alunoId]: { ...(prev[alunoId] ?? vazio), [b]: limpo } }));
+    const chave = `${alunoId}.${b}`;
+    const n = valorNota(limpo);
+    setErros((prev) => {
+      const copia = { ...prev };
+      if (limpo !== "" && (n === null || n < 0 || n > NOTA_MAX_BIMESTRE)) {
+        copia[chave] = `Use um valor de 0 a ${NOTA_MAX_BIMESTRE}.`;
+      } else {
+        delete copia[chave];
+      }
+      return copia;
     });
+  }
 
-    useEffect(() => {
-        async function iniciarDados() {
-            try {
-                const emailUsuario = localStorage.getItem("usuario_email");
-                if (!emailUsuario) {
-                    console.error("Nenhum professor logado.");
-                    return;
-                }
-        
-                const resProf = await axios.get(`http://localhost:3001/professores?email=${emailUsuario}`);
-                
-                if (resProf.data.length > 0) {
-                    const idDoProf = resProf.data[0].id;
-                    setProfessorId(idDoProf); 
-        
-                    const [resDisc, resTurmas] = await Promise.all([
-                        axios.get("http://localhost:3000/disciplinas"),
-                        axios.get("http://localhost:3000/turmas")
-                    ]);
-        
-                    const todasDisciplinas = resDisc.data;
-                    setCatalogoDisciplinas(todasDisciplinas);
-        
-                    const disciplinasDoProf = todasDisciplinas.filter(
-                        (d: any) => String(d.professorId).trim() === String(idDoProf).trim()
-                    );
-                    const idsDisciplinasDoProf = disciplinasDoProf.map((d: any) => String(d.id).trim());
-        
-                    const turmasFiltradas = resTurmas.data.filter((turma: any) => {
-                        const disciplinasDaTurma = turma.disciplinas;
-                        if (!disciplinasDaTurma || !Array.isArray(disciplinasDaTurma)) return false;
-        
-                        return disciplinasDaTurma.some((disc: any) => {
-                            const idDisc = typeof disc === "object" && disc !== null ? disc.id : disc;
-                            return idsDisciplinasDoProf.includes(String(idDisc).trim());
-                        });
-                    });
-        
-                    setTurmas(turmasFiltradas);
-                }
-            } catch (error) {
-                console.error("Erro ao iniciar dados iniciais:", error);
-                acionarModal("erro", "Erro ao carregar os dados iniciais.");
-            }
-        }
-        iniciarDados();
-    }, []);
-
-    useEffect(() => {
-        if (turmaSelecionada && catalogoDisciplinas.length > 0) {
-            carregarDisciplinasDaTurma(turmaSelecionada);
-            setDisciplinaSelecionada(""); 
-            setAlunos([]);
-            setNotasForm({});
-        } else {
-            setDisciplinasFiltradas([]);
-            setDisciplinaSelecionada("");
-            setAlunos([]);
-            setNotasForm({});
-        }
-    }, [turmaSelecionada, catalogoDisciplinas]);
-
-    useEffect(() => {
-        if (turmaSelecionada && disciplinaSelecionada) {
-            buscarAlunosENotas(turmaSelecionada, disciplinaSelecionada);
-        } else {
-            setAlunos([]);
-            setNotasForm({});
-        }
-    }, [turmaSelecionada, disciplinaSelecionada]);
-
-    async function carregarDisciplinasDaTurma(turmaId: string) {
-        try {
-            const response = await axios.get(`http://localhost:3001/turmas/${turmaId}`);
-            const idsDaTurma: any[] = response.data.disciplinas || [];
-
-            const mapeadas = idsDaTurma.map(idOuObjeto => {
-                const idBuscado = typeof idOuObjeto === "object" && idOuObjeto !== null ? idOuObjeto.id : idOuObjeto;
-                
-                const correspondente = catalogoDisciplinas.find(d => String(d.id) === String(idBuscado));
-                
-                if (correspondente) {
-                    return {
-                        id: correspondente.id,
-                        nome: correspondente.nomeDisciplina || correspondente.nome || "Sem Nome",
-                        professorId: correspondente.professorId
-                    };
-                }
-
-                if (typeof idOuObjeto === "object" && idOuObjeto !== null) {
-                    return {
-                        id: idOuObjeto.id,
-                        nome: idOuObjeto.nomeDisciplina || idOuObjeto.nome || idOuObjeto.id,
-                        professorId: idOuObjeto.professorId
-                    };
-                }
-
-                return null;
-            }).filter(d => d !== null && String(d.professorId) === String(professorId));
-
-            setDisciplinasFiltradas(mapeadas as DisciplinaCatalogo[]);
-        } catch (error) {
-            console.error(error);
-            acionarModal("erro", "Erro ao processar as disciplinas da turma.");
-        }
-    }
-
-    async function buscarAlunosENotas(turmaId: string, disciplinaId: string) {
-        try {
-            const responseTurma = await axios.get(`http://localhost:3001/turmas/${turmaId}`);
-            const idsAlunosDaTurma: string[] = responseTurma.data.alunos || [];
-
-            const responseTodosAlunos = await axios.get(`http://localhost:3000/alunos`);
-            const todosAlunos = responseTodosAlunos.data;
-
-            const listaAlunosFiltrados = todosAlunos.filter((aluno: any) => 
-                idsAlunosDaTurma.includes(aluno.id)
-            );
-            
-            setAlunos(listaAlunosFiltrados);
-
-            const responseNotas = await axios.get(`http://localhost:3000/notas/turma/${turmaId}`);
-            const notasSalvas = responseNotas.data;
-
-            const estruturaNotas: Record<string, NotasBimestre> = {};
-
-            listaAlunosFiltrados.forEach((aluno: AlunoNota) => {
-                const notaExistente = notasSalvas.find(
-                    (n: any) => n.alunoId === aluno.id && String(n.disciplina) === String(disciplinaId)
-                );
-
-                estruturaNotas[aluno.id] = {
-                    bim1: notaExistente?.bim1 !== undefined && notaExistente?.bim1 !== null ? String(notaExistente.bim1) : "",
-                    bim2: notaExistente?.bim2 !== undefined && notaExistente?.bim2 !== null ? String(notaExistente.bim2) : "",
-                    bim3: notaExistente?.bim3 !== undefined && notaExistente?.bim3 !== null ? String(notaExistente.bim3) : "",
-                    bim4: notaExistente?.bim4 !== undefined && notaExistente?.bim4 !== null ? String(notaExistente.bim4) : "",
-                };
-            });
-
-            setNotasForm(estruturaNotas);
-        } catch (error) {
-            console.error(error);
-            acionarModal("erro", "Erro ao carregar notas e alunos filtrados.");
-        }
-    }
-
-    function acionarModal(tipo: "sucesso" | "erro", mensagem: string) {
-        setModal({ visivel: true, tipo, mensagem });
-        setTimeout(() => {
-            setModal((prev) => ({ ...prev, visivel: false }));
-        }, 3000);
-    }
-
-    function handleNotaChange(alunoId: string, bimestre: keyof NotasBimestre, valor: string) {
-        const valorFormatado = valor.replace(",", ".");
-        
-        if (valorFormatado !== "") {
-            const numero = Number(valorFormatado);
-            if (isNaN(numero)) return;
-            if (numero < 0 || numero > 25) return; 
-        }
-
-        setNotasForm((prev) => ({
-            ...prev,
-            [alunoId]: {
-                ...prev[alunoId],
-                [bimestre]: valor,
-            },
-        }));
-    }
-
-    function calcularNotaFinal(alunoId: string): string {
-        const notasObj = notasForm[alunoId];
-        if (!notasObj) return "-";
-
-        const valores = [notasObj.bim1, notasObj.bim2, notasObj.bim3, notasObj.bim4]
-            .map((v) => v.trim())
-            .filter((v) => v !== "");
-
-        if (valores.length === 0) return "-";
-
-        const soma = valores.reduce((acc, val) => acc + Number(val), 0);
-
-        return soma.toFixed(1).replace(".", ",");
-    }
-
-    async function salvarNotas(e: React.FormEvent) {
-        e.preventDefault();
-
-        if (!turmaSelecionada || !disciplinaSelecionada) {
-            acionarModal("erro", "Selecione a turma e a disciplina antes de salvar.");
-            return;
-        }
-
-        try {
-            const payload = {
-                turmaId: turmaSelecionada,
-                lancamentos: Object.entries(notasForm).map(([alunoId, notasObj]) => ({
-                    alunoId,
-                    disciplina: disciplinaSelecionada,
-                    bim1: notasObj.bim1 === "" ? null : Number(notasObj.bim1),
-                    bim2: notasObj.bim2 === "" ? null : Number(notasObj.bim2),
-                    bim3: notasObj.bim3 === "" ? null : Number(notasObj.bim3),
-                    bim4: notasObj.bim4 === "" ? null : Number(notasObj.bim4),
-                })),
-            };
-
-            await axios.post("http://localhost:3000/notas/lancar", payload);
-
-            acionarModal("sucesso", "Notas salvas com sucesso!");
-            buscarAlunosENotas(turmaSelecionada, disciplinaSelecionada);
-        } catch (error) {
-            console.error(error);
-            acionarModal("erro", "Erro ao salvar as notas.");
-        }
-    }
-
-    return (
-        <>
-            {modal.visivel && (
-                <div className="modal-overlay">
-                    <div className={`modal-caixa modal-${modal.tipo}`}>
-                        <p>{modal.mensagem}</p>
-                    </div>
-                </div>
-            )}
-
-            <div className="conteudo-principal">
-                <div className="cabecalho-abas">
-                    <h1 className="titulo-pagina">Lançamento de Notas</h1>
-                </div>
-
-                <div className="container-filtros-notas">
-                    <div className="grupo-filtro">
-                        <label htmlFor="select-turma">Turma:</label>
-                        <select
-                            id="select-turma"
-                            value={turmaSelecionada}
-                            onChange={(e) => setTurmaSelecionada(e.target.value)}
-                            className="select-filtro-custom"
-                        >
-                            <option value="">-- Escolha uma Turma --</option>
-                            {turmas.map((turma) => (
-                                <option key={turma.id} value={turma.id}>
-                                    {turma.nomeTurma}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="grupo-filtro">
-                        <label htmlFor="select-disciplina">Disciplina:</label>
-                        <select
-                            id="select-disciplina"
-                            value={disciplinaSelecionada}
-                            onChange={(e) => setDisciplinaSelecionada(e.target.value)}
-                            className="select-filtro-custom"
-                            disabled={!turmaSelecionada}
-                        >
-                            <option value="">-- Escolha uma Disciplina --</option>
-                            {disciplinasFiltradas.map((disc) => (
-                                <option key={disc.id} value={disc.id}>
-                                    {disc.nome}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {turmaSelecionada && disciplinaSelecionada && (
-                    <div className="container-tabela-layout">
-                        {alunos.length === 0 ? (
-                            <p className="mensagem-lista-vazia">
-                                Nenhum aluno cadastrado nesta turma.
-                            </p>
-                        ) : (
-                            <form onSubmit={salvarNotas}>
-                                <div className="tabela-wrapper-scroll">
-                                    <table className="tabela-boletim-escolar">
-                                        <thead>
-                                            <tr>
-                                                <th className="col-aluno">Alunos</th>
-                                                <th className="col-bim">1º Bim</th>
-                                                <th className="col-bim">2º Bim</th>
-                                                <th className="col-bim">3º Bim</th>
-                                                <th className="col-bim">4º Bim</th>
-                                                <th className="col-nota-final">Nota Final</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {alunos.map((aluno) => (
-                                                <tr key={aluno.id}>
-                                                    <td className="celula-dados-aluno">
-                                                        <div className="nome-aluno-tabela">{aluno.nomeAluno}</div>
-                                                        <div className="cpf-aluno-tabela">{aluno.cpfAluno}</div>
-                                                    </td>
-                                                    <td>
-                                                        <input
-                                                            type="text"
-                                                            value={notasForm[aluno.id]?.bim1 || ""}
-                                                            onChange={(e) => handleNotaChange(aluno.id, "bim1", e.target.value)}
-                                                            placeholder="-"
-                                                            className="input-nota-boletim"
-                                                        />
-                                                    </td>
-                                                    <td>
-                                                        <input
-                                                            type="text"
-                                                            value={notasForm[aluno.id]?.bim2 || ""}
-                                                            onChange={(e) => handleNotaChange(aluno.id, "bim2", e.target.value)}
-                                                            placeholder="-"
-                                                            className="input-nota-boletim"
-                                                        />
-                                                    </td>
-                                                    <td>
-                                                        <input
-                                                            type="text"
-                                                            value={notasForm[aluno.id]?.bim3 || ""}
-                                                            onChange={(e) => handleNotaChange(aluno.id, "bim3", e.target.value)}
-                                                            placeholder="-"
-                                                            className="input-nota-boletim"
-                                                        />
-                                                    </td>
-                                                    <td>
-                                                        <input
-                                                            type="text"
-                                                            value={notasForm[aluno.id]?.bim4 || ""}
-                                                            onChange={(e) => handleNotaChange(aluno.id, "bim4", e.target.value)}
-                                                            placeholder="-"
-                                                            className="input-nota-boletim"
-                                                        />
-                                                    </td>
-                                                    <td className="celula-nota-final-resultado">
-                                                        {calcularNotaFinal(aluno.id)}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="secao-botao-salvar">
-                                    <button type="submit" className="btn-salvar-boletim">Salvar Notas</button>
-                                </div>
-                            </form>
-                        )}
-                    </div>
-                )}
-            </div>
-            <SidebarProfessor />
-        </>
+  const alteradas = useMemo(() => {
+    const lista: Array<{ aluno: any; b: Bimestre; antes: string; depois: string }> = [];
+    (alunos ?? []).forEach((aluno) =>
+      BIMESTRES.forEach((b) => {
+        const antes = salvas[aluno.id]?.[b] ?? "";
+        const depois = notas[aluno.id]?.[b] ?? "";
+        if (valorNota(antes) !== valorNota(depois)) lista.push({ aluno, b, antes, depois });
+      })
     );
+    return lista;
+  }, [alunos, salvas, notas]);
+
+  async function salvarNotas(e: React.FormEvent) {
+    e.preventDefault();
+    if (Object.keys(erros).length > 0) {
+      feedback.erro(`Há notas fora do intervalo de 0 a ${NOTA_MAX_BIMESTRE}. Corrija os campos destacados.`);
+      return;
+    }
+    if (alteradas.length === 0) {
+      feedback.info("Nenhuma nota foi alterada.");
+      return;
+    }
+    const sobrescritas = alteradas.filter((a) => a.antes !== "");
+    const ok = await confirmar({
+      titulo: sobrescritas.length > 0 ? "Substituir notas já lançadas?" : "Salvar as notas?",
+      mensagem:
+        sobrescritas.length > 0
+          ? `${sobrescritas.length} nota(s) já salva(s) serão substituídas. Confira antes de confirmar:`
+          : `${alteradas.length} nota(s) serão registradas:`,
+      detalhes: alteradas.slice(0, 8).map((a) => [
+        `${a.aluno.nomeAluno} · ${NOME_BIMESTRE[a.b]}`,
+        `${a.antes || "—"} → ${a.depois || "—"}`,
+      ]).concat(alteradas.length > 8 ? [["...", `e mais ${alteradas.length - 8} alteração(ões)`]] : []) as Array<[string, string]>,
+      textoConfirmar: "Salvar notas",
+    });
+    if (!ok) return;
+
+    setSalvando(true);
+    try {
+      await api.post("/notas/lancar", {
+        turmaId,
+        disciplinaId,
+        lancamentos: (alunos ?? []).map((aluno) => ({
+          alunoId: String(aluno.id),
+          ...Object.fromEntries(BIMESTRES.map((b) => [b, valorNota(notas[aluno.id]?.[b])])),
+        })),
+      });
+      feedback.sucesso(`Notas salvas com sucesso (${alteradas.length} alteração(ões)).`);
+      await carregarNotas(turmaId, disciplinaId);
+    } catch (erro) {
+      const { mensagem, campos } = lerErro(erro, "Não foi possível salvar as notas.");
+      setErros(campos);
+      feedback.erro(mensagem);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  const colunas = bimestre ? [bimestre] : [...BIMESTRES];
+  const visiveis = (alunos ?? []).filter((a) => !busca.trim() || a.nomeAluno.toLowerCase().includes(busca.trim().toLowerCase()));
+
+  return (
+    <>
+      <main className="conteudo-principal">
+        <div className="cabecalho-abas">
+          <h1 className="titulo-pagina">Lançamento de notas</h1>
+        </div>
+        <p className="texto-ajuda">
+          Cada bimestre vale de 0 a {NOTA_MAX_BIMESTRE} pontos. A nota final é a soma dos 4 bimestres (0 a 100);
+          enquanto faltar bimestre ela aparece como parcial.
+        </p>
+
+        <div className="container-filtros-notas">
+          <div className="grupo-filtro">
+            <label htmlFor="select-turma">Turma:</label>
+            <select id="select-turma" value={turmaId} onChange={(e) => setTurmaId(e.target.value)} className="select-filtro-custom">
+              <option value="">-- Escolha uma turma --</option>
+              {turmas.map((t) => (
+                <option key={t.id} value={t.id}>{t.nomeTurma} - {t.turno}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grupo-filtro">
+            <label htmlFor="select-disciplina">Disciplina:</label>
+            <select id="select-disciplina" value={disciplinaId} onChange={(e) => setDisciplinaId(e.target.value)} className="select-filtro-custom" disabled={!turmaId}>
+              <option value="">-- Escolha uma disciplina --</option>
+              {disciplinasDaTurma.map((d) => (
+                <option key={d.id} value={d.id}>{d.nomeDisciplina}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grupo-filtro">
+            <label htmlFor="select-bimestre">Bimestre:</label>
+            <select id="select-bimestre" value={bimestre} onChange={(e) => setBimestre(e.target.value as Bimestre | "")} className="select-filtro-custom">
+              <option value="">Todos os bimestres</option>
+              {BIMESTRES.map((b) => (
+                <option key={b} value={b}>{NOME_BIMESTRE[b]}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grupo-filtro">
+            <label htmlFor="busca-aluno">Buscar aluno:</label>
+            <input id="busca-aluno" type="search" value={busca} onChange={(e) => setBusca(e.target.value)} className="select-filtro-custom" placeholder="Nome do aluno" />
+          </div>
+        </div>
+
+        {!turmaId || !disciplinaId ? (
+          <ListaVazia texto="Escolha a turma e a disciplina para ver e lançar as notas." />
+        ) : alunos === null ? (
+          <Carregando texto="Carregando alunos e notas..." />
+        ) : alunos.length === 0 ? (
+          <ListaVazia texto="Nenhum aluno cadastrado nesta turma." />
+        ) : (
+          <form onSubmit={salvarNotas} className="container-tabela-layout" noValidate>
+            <div className="tabela-wrapper-scroll">
+              <table className="tabela-boletim-escolar">
+                <thead>
+                  <tr>
+                    <th scope="col" className="col-aluno">Aluno</th>
+                    {colunas.map((b) => (
+                      <th scope="col" key={b} className="col-bim">{NOME_BIMESTRE[b]} (0–{NOTA_MAX_BIMESTRE})</th>
+                    ))}
+                    <th scope="col" className="col-nota-final">Nota final (0–100)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visiveis.map((aluno) => {
+                    const final = notaFinal(notas[aluno.id]);
+                    return (
+                      <tr key={aluno.id}>
+                        <th scope="row" className="celula-dados-aluno">
+                          <div className="nome-aluno-tabela">{aluno.nomeAluno}</div>
+                          <div className="cpf-aluno-tabela">CPF {aluno.cpfAluno}</div>
+                        </th>
+                        {colunas.map((b) => {
+                          const chave = `${aluno.id}.${b}`;
+                          return (
+                            <td key={b}>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={notas[aluno.id]?.[b] ?? ""}
+                                onChange={(e) => alterarNota(aluno.id, b, e.target.value)}
+                                placeholder="-"
+                                aria-label={`${NOME_BIMESTRE[b]} de ${aluno.nomeAluno}`}
+                                aria-invalid={Boolean(erros[chave]) || undefined}
+                                aria-describedby={erros[chave] ? `erro-${chave}` : undefined}
+                                className={`input-nota-boletim ${erros[chave] ? "campo-invalido" : ""}`}
+                              />
+                              <CampoErro id={`erro-${chave}`} mensagem={erros[chave]} />
+                            </td>
+                          );
+                        })}
+                        <td className="celula-nota-final-resultado">
+                          {formatarNota(final.valor)}
+                          {final.parcial && <span className="nota-parcial"> (parcial)</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="secao-botao-salvar acoes-formulario">
+              <button type="button" className="botao-secundario" disabled={alteradas.length === 0 || salvando} onClick={() => { setNotas(salvas); setErros({}); }}>
+                Cancelar alterações
+              </button>
+              <button type="submit" className="btn-salvar-boletim" disabled={salvando}>
+                {salvando ? "Salvando..." : `Salvar notas${alteradas.length ? ` (${alteradas.length})` : ""}`}
+              </button>
+            </div>
+          </form>
+        )}
+      </main>
+      <SidebarProfessor />
+    </>
+  );
 }

@@ -1,35 +1,15 @@
-import { Link, NavLink } from "react-router-dom";
-import { FiGrid, FiBookOpen, FiBarChart2, FiBell, FiLogOut } from "react-icons/fi";
-import "../../styles/sidebar.css";
+import { FiGrid, FiBookOpen, FiBarChart2, FiBell } from "react-icons/fi";
+import { SidebarBase } from "../../components/SidebarBase";
 
 export function SidebarProfessor() {
     return (
-        <nav className="sidebar">
-            <p>MENU</p>
-            <NavLink to="/prof/dashboard">
-                <FiGrid />
-                <span>Dashboard</span>
-            </NavLink>
-
-            <NavLink to="/prof/notas">
-                <FiBookOpen />
-                <span>Notas</span>
-            </NavLink>
-
-            <NavLink to="/prof/frequencia">
-                <FiBarChart2 />
-                <span>Frequência</span>
-            </NavLink>
-
-            <NavLink to="/prof/avisos">
-                <FiBell />
-                <span>Avisos</span>
-            </NavLink>
-
-            <Link to="/login" className="logout">
-                <FiLogOut />
-                <span>Sair</span>
-            </Link>
-        </nav>
+        <SidebarBase
+            itens={[
+                { para: "/prof/dashboard", rotulo: "Dashboard", icone: FiGrid },
+                { para: "/prof/notas", rotulo: "Notas", icone: FiBookOpen },
+                { para: "/prof/frequencia", rotulo: "Frequência", icone: FiBarChart2 },
+                { para: "/prof/avisos", rotulo: "Avisos", icone: FiBell },
+            ]}
+        />
     );
 }
