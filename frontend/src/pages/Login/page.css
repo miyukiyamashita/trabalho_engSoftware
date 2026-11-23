@@ -118,3 +118,37 @@
 .paginaLogin .entrar:hover {
     background-color: #3249D8;
 }
+
+
+.paginaLogin input,
+.paginaLogin .entrar {
+    max-width: calc(100vw - 48px);
+    box-sizing: border-box;
+}
+
+.paginaLogin .erro-login {
+    max-width: 380px;
+    color: #b83226;
+    font-weight: 600;
+    text-align: center;
+}
+
+.paginaLogin .dica-campo {
+    max-width: 380px;
+    text-align: center;
+}
+
+.paginaLogin .erro-campo {
+    max-width: 380px;
+    align-self: center;
+}
+
+.paginaLogin .quadrado {
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+    .paginaLogin .quadrado { padding: 24px 16px; }
+    .paginaLogin .voltar { top: 12px; left: 12px; }
+}

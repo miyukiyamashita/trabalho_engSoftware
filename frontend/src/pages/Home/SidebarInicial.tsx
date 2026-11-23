@@ -1,25 +1,15 @@
-import { NavLink } from "react-router-dom";
 import { FiHome, FiUserPlus, FiLogIn } from "react-icons/fi";
-import "../../styles/sidebar.css";
+import { SidebarBase } from "../../components/SidebarBase";
 
 export function SidebarInicial() {
     return (
-        <nav className="sidebar">
-            <p>Menu</p>
-            <NavLink to="/">
-                <FiHome />
-                <span>Início</span>
-            </NavLink>
-
-            <NavLink to="/telacadastro">
-                <FiUserPlus />
-                <span>Solicitar cadastro</span>
-            </NavLink>
-
-            <NavLink to="/login">
-                <FiLogIn />
-                <span>Realizar login</span>
-            </NavLink>
-        </nav>
+        <SidebarBase
+            publico
+            itens={[
+                { para: "/", rotulo: "Início", icone: FiHome, exato: true },
+                { para: "/telacadastro", rotulo: "Solicitar cadastro", icone: FiUserPlus },
+                { para: "/login", rotulo: "Realizar login", icone: FiLogIn },
+            ]}
+        />
     );
 }
