@@ -1,8 +1,10 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
 import { ProfessoresService } from './professores.service';
-import { Usuario } from '../common/decorators';
+import { Usuario, Roles } from '../common/decorators';
 import type { UsuarioLogado } from '../common/escopo';
+import { TipoUsuario } from '../classes/tipo-usuario';
 
+@Roles(TipoUsuario.ADMIN_ESCOLAR)
 @Controller('professores')
 export class ProfessoresController {
   constructor(private readonly service: ProfessoresService) {}
