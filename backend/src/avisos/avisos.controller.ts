@@ -2,6 +2,7 @@ import { Controller, Post, Body, Get, Param, Patch } from '@nestjs/common';
 import { AvisosService } from './avisos.service';
 import { Usuario, Roles } from '../common/decorators';
 import type { UsuarioLogado } from '../common/escopo';
+import { AvisoDto } from '../common/dtos';
 import { TipoUsuario } from '../classes/tipo-usuario';
 
 @Controller('avisos')
@@ -10,7 +11,7 @@ export class AvisosController {
 
   @Post()
   @Roles(TipoUsuario.ADMIN_ESCOLAR, TipoUsuario.PROF)
-  create(@Body() body: any, @Usuario() user: UsuarioLogado) {
+  create(@Body() body: AvisoDto, @Usuario() user: UsuarioLogado) {
     return this.service.create(body, user);
   }
 
