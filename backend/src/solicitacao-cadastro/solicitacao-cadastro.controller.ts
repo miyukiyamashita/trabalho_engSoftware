@@ -1,30 +1,35 @@
-import { Body, Controller, Get, Param, Post, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Patch, Query } from '@nestjs/common';
 import { SolicitacaoCadastroService } from './solicitacao-cadastro.service';
-import { SolicitacaoCadastro } from '../classes/SolicitacaoCadastro';
+import { Public } from '../common/decorators';
 
 @Controller('solicitacoes-cadastro')
 export class SolicitacaoCadastroController {
-    constructor(
-        private readonly service: SolicitacaoCadastroService,
-    ) {}
+  constructor(private readonly service: SolicitacaoCadastroService) {}
 
-    @Post()
-    create(@Body() data: SolicitacaoCadastro) {
-        return this.service.create(data);
-    }
+  @Public()
+  @Post()
+  create(@Body() data: any) {
+    return this.service.create(data);
+  }
 
-    @Get()
-    findAll() {
-        return this.service.findAll();
-    }
+  @Get()
+  findAll(@Query('status') status?: string) {
+    return this.service.findAll(status);
+  }
 
-    @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.service.findOne(id);
-    }
+  @Public()
+  @Get(':id/status')
+  statusPublico(@Param('id') id: string) {
+    return this.service.statusPublico(id);
+  }
 
-    @Patch(':id/status')
-    updateStatus(@Param('id') id: string, @Body('status') status: string) {
-        return this.service.updateStatus(id, status);
-    }
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.service.findOne(id);
+  }
+
+  @Patch(':id/status')
+  updateStatus(@Param('id') id: string, @Body('status') status: string) {
+    return this.service.decidir(id, status);
+  }
 }
