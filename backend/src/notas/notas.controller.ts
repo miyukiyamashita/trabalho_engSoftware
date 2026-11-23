@@ -1,29 +1,26 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { NotasService } from './notas.service';
+import { Usuario, Roles } from '../common/decorators';
+import type { UsuarioLogado } from '../common/escopo';
+import { TipoUsuario } from '../classes/tipo-usuario';
 
 @Controller('notas')
 export class NotasController {
-    constructor(private readonly service: NotasService) {}
+  constructor(private readonly service: NotasService) {}
 
-    @Get('turma/:turmaId')
-    findByTurma(@Param('turmaId') turmaId: string) {
-        return this.service.findByTurma(turmaId);
-    }
+  @Get()
+  @Roles(TipoUsuario.ADMIN_ESCOLAR, TipoUsuario.PROF)
+  findByTurma(
+    @Query('turmaId') turmaId: string,
+    @Query('disciplinaId') disciplinaId: string | undefined,
+    @Usuario() user: UsuarioLogado,
+  ) {
+    return this.service.findByTurma(turmaId, user, disciplinaId);
+  }
 
-    @Post('lancar')
-    lancarNotas(
-        @Body() body: { 
-            turmaId: string; 
-            lancamentos: { 
-                alunoId: string; 
-                disciplina: string;
-                bim1: number | null; 
-                bim2: number | null; 
-                bim3: number | null; 
-                bim4: number | null; 
-            }[] 
-        }
-    ) {
-        return this.service.lancarNotas(body);
-    }
+  @Post('lancar')
+  @Roles(TipoUsuario.PROF)
+  lancarNotas(@Body() body: any, @Usuario() user: UsuarioLogado) {
+    return this.service.lancar(body, user);
+  }
 }

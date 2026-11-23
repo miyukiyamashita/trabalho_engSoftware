@@ -1,41 +1,55 @@
-import { Injectable } from '@nestjs/common';
-import axios from 'axios';
-import { Frequencia } from '../classes/Frequencia';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { DbService } from '../common/db.service';
+import { AcessoService } from '../common/acesso.service';
+import { UsuarioLogado } from '../common/escopo';
 
 @Injectable()
 export class FrequenciaService {
-    private url = 'http://localhost:3001/frequencia';
+  constructor(
+    private readonly db: DbService,
+    private readonly acesso: AcessoService,
+  ) {}
 
-    async findByTurmaEDisciplinaEData(turmaId: string, disciplinaId: string, data: string) {
-        try {
-            const response = await axios.get(
-                `${this.url}?turmaId=${turmaId}&disciplinaId=${disciplinaId}&data=${data}`
-            );
-            return response.data[0] || null;
-        } catch (error) {
-            return null;
-        }
+  async buscar(turmaId: string, disciplinaId: string, data: string, user: UsuarioLogado) {
+    await this.acesso.garantirAcessoTurma(user, turmaId, disciplinaId);
+    const [registro] = await this.db.list('frequencia', {
+      turmaId: String(turmaId),
+      disciplinaId: String(disciplinaId),
+      data,
+    });
+    return registro ?? null;
+  }
+
+  /** RF12: registra (ou substitui) a chamada da turma/disciplina na data. */
+  async registrar(
+    payload: { turmaId: string; disciplinaId: string; data: string; chamada: { alunoId: string; presente: boolean }[] },
+    user: UsuarioLogado,
+  ) {
+    const turma = await this.acesso.garantirAcessoTurma(user, payload.turmaId, payload.disciplinaId);
+    const alunosTurma = (turma.alunos ?? []).map(String);
+    if (payload.chamada.some((c) => !alunosTurma.includes(String(c.alunoId)))) {
+      throw new BadRequestException('Há alunos que não pertencem a esta turma.');
+    }
+    if (payload.data > new Date().toISOString().slice(0, 10)) {
+      throw new BadRequestException({
+        message: 'Não é possível registrar frequência em data futura.',
+        campos: { data: 'Escolha a data de hoje ou uma data anterior.' },
+      });
     }
 
-    async registrarFrequencia(payload: Frequencia) {
-        try {
-            const { turmaId, disciplinaId, data } = payload as any; 
-
-            const responseExistente = await axios.get(
-                `${this.url}?turmaId=${turmaId}&disciplinaId=${disciplinaId}&data=${data}`
-            );
-            const frequenciaExistente = responseExistente.data[0];
-
-            if (frequenciaExistente && frequenciaExistente.id) {
-                const response = await axios.put(`${this.url}/${frequenciaExistente.id}`, payload);
-                return response.data;
-            } else {
-                const response = await axios.post(this.url, payload);
-                return response.data;
-            }
-        } catch (error: any) {
-            console.error('Erro ao registrar frequência:', error.message);
-            throw error;
-        }
-    }
+    const dados = {
+      turmaId: String(payload.turmaId),
+      disciplinaId: String(payload.disciplinaId),
+      data: payload.data,
+      escolaId: String(turma.escolaId),
+      chamada: payload.chamada.map((c) => ({ alunoId: String(c.alunoId), presente: Boolean(c.presente) })),
+      atualizadoEm: new Date().toISOString(),
+    };
+    const [existente] = await this.db.list('frequencia', {
+      turmaId: dados.turmaId,
+      disciplinaId: dados.disciplinaId,
+      data: dados.data,
+    });
+    return existente ? this.db.patch('frequencia', existente.id, dados) : this.db.create('frequencia', dados);
+  }
 }

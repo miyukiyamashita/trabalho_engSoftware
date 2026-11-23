@@ -1,80 +1,80 @@
-import { Injectable } from '@nestjs/common';
-import axios from 'axios';
-import { Nota } from '../classes/Nota';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { DbService } from '../common/db.service';
+import { AcessoService } from '../common/acesso.service';
+import { TipoUsuario } from '../classes/tipo-usuario';
+import { UsuarioLogado } from '../common/escopo';
+import { BIMESTRES, NOTA_MAX_BIMESTRE, valorNota } from '../common/notas';
+
+export interface LancamentoNota {
+  alunoId: string;
+  bim1?: number | null;
+  bim2?: number | null;
+  bim3?: number | null;
+  bim4?: number | null;
+}
 
 @Injectable()
 export class NotasService {
-    private url = 'http://localhost:3001/notas';
+  constructor(
+    private readonly db: DbService,
+    private readonly acesso: AcessoService,
+  ) {}
 
-    async findByTurma(turmaId: string) {
-        try {
-            const response = await axios.get(`${this.url}?turmaId=${turmaId}`);
-            return response.data;
-        } catch (error) {
-            return [];
+  async findByTurma(turmaId: string, user: UsuarioLogado, disciplinaId?: string) {
+    await this.acesso.garantirAcessoTurma(user, turmaId, disciplinaId);
+    let notas = await this.db.list('notas', { turmaId: String(turmaId) });
+    if (disciplinaId) notas = notas.filter((n) => String(n.disciplinaId) === String(disciplinaId));
+    if (user.tipo === TipoUsuario.PROF) {
+      const minhas = (await this.acesso.disciplinasDoProfessor(String(user.perfilId))).map((d) => String(d.id));
+      notas = notas.filter((n) => minhas.includes(String(n.disciplinaId)));
+    }
+    return notas;
+  }
+
+  /** RF11: registra ou atualiza as notas de uma turma/disciplina do professor. */
+  async lancar(payload: { turmaId: string; disciplinaId: string; lancamentos: LancamentoNota[] }, user: UsuarioLogado) {
+    const turma = await this.acesso.garantirAcessoTurma(user, payload.turmaId, payload.disciplinaId);
+    const alunosTurma = (turma.alunos ?? []).map(String);
+
+    const erros: Record<string, string> = {};
+    for (const l of payload.lancamentos) {
+      if (!alunosTurma.includes(String(l.alunoId))) {
+        throw new BadRequestException('Há alunos que não pertencem a esta turma.');
+      }
+      for (const b of BIMESTRES) {
+        const v = valorNota(l[b]);
+        if (l[b] !== null && l[b] !== undefined && (v === null || v < 0 || v > NOTA_MAX_BIMESTRE)) {
+          erros[`${l.alunoId}.${b}`] = `A nota deve estar entre 0 e ${NOTA_MAX_BIMESTRE}.`;
         }
+      }
+    }
+    if (Object.keys(erros).length > 0) {
+      throw new BadRequestException({
+        message: `Há notas fora do intervalo permitido (0 a ${NOTA_MAX_BIMESTRE}). Corrija os campos destacados.`,
+        campos: erros,
+      });
     }
 
-    async lancarNotas(payload: { 
-        turmaId: string; 
-        lancamentos: { 
-            alunoId: string; 
-            disciplina: string;
-            bim1: number | null; 
-            bim2: number | null; 
-            bim3: number | null; 
-            bim4: number | null; 
-        }[] 
-    }) {
-        try {
-            const { turmaId, lancamentos } = payload;
-            let notasExistentes: Nota[] = [];
-
-            try {
-                const responseExistentes = await axios.get(`${this.url}?turmaId=${turmaId}`);
-                if (Array.isArray(responseExistentes.data)) {
-                    notasExistentes = responseExistentes.data;
-                }
-            } catch (err) {
-                console.log('A tabela de notas ainda está vazia no json-server. Criando novos registros...');
-            }
-
-            const resultados = [];
-
-            for (const lancamento of lancamentos) {
-                // Procura se o aluno já tem nota cadastrada para ESTA disciplina específica
-                const notaAtual = notasExistentes.find(
-                    n => n.alunoId === lancamento.alunoId && n.disciplina === lancamento.disciplina
-                );
-
-                const dadosNota: Nota = {
-                    turmaId,
-                    alunoId: lancamento.alunoId,
-                    disciplina: lancamento.disciplina,
-                    bim1: lancamento.bim1,
-                    bim2: lancamento.bim2,
-                    bim3: lancamento.bim3,
-                    bim4: lancamento.bim4
-                };
-
-                if (notaAtual && notaAtual.id) {
-                    const response = await axios.put(`${this.url}/${notaAtual.id}`, dadosNota);
-                    resultados.push(response.data);
-                } else {
-                    const response = await axios.post(this.url, dadosNota);
-                    resultados.push(response.data);
-                }
-            }
-
-            return { 
-                message: 'Notas processadas com sucesso', 
-                totalProcessado: resultados.length,
-                dados: resultados 
-            };
-
-        } catch (error: any) {
-            console.error('Erro crítico ao lançar notas no service:', error.response?.data || error.message);
-            throw error;
-        }
+    const existentes = await this.db.list('notas', {
+      turmaId: String(payload.turmaId),
+      disciplinaId: String(payload.disciplinaId),
+    });
+    const resultados: any[] = [];
+    for (const l of payload.lancamentos) {
+      const dados = {
+        turmaId: String(payload.turmaId),
+        disciplinaId: String(payload.disciplinaId),
+        alunoId: String(l.alunoId),
+        escolaId: String(turma.escolaId),
+        bim1: valorNota(l.bim1),
+        bim2: valorNota(l.bim2),
+        bim3: valorNota(l.bim3),
+        bim4: valorNota(l.bim4),
+        atualizadoEm: new Date().toISOString(),
+      };
+      const atual = existentes.find((n) => String(n.alunoId) === String(l.alunoId));
+      resultados.push(atual ? await this.db.patch('notas', atual.id, dados) : await this.db.create('notas', dados));
     }
+    return { message: 'Notas salvas com sucesso.', totalProcessado: resultados.length, dados: resultados };
+  }
 }

@@ -1,11 +1,13 @@
 import { Controller, Get } from '@nestjs/common';
+import { Public } from './common/decorators';
 
 @Controller()
 export class AppController {
+  @Public()
   @Get()
   getHello() {
     return {
-      message: 'Backend funcionando!'
+      message: 'Backend funcionando!',
     };
   }
 }
