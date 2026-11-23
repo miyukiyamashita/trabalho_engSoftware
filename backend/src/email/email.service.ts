@@ -1,25 +1,50 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { templateBaseSistemaCresce } from '../utils/credenciais';
 
+/**
+ * Envio de e-mails do sistema. As credenciais SMTP vêm do .env (T4).
+ * Se SMTP_USER não estiver configurado, o serviço opera em "modo demonstração":
+ * nenhum e-mail é enviado e os métodos retornam false, para que quem fez o
+ * cadastro veja a senha gerada na tela (T8).
+ */
 @Injectable()
 export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
+  private readonly transporter: nodemailer.Transporter | null;
+  private readonly from: string;
 
-    private transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: 'gerenciamentocresce@gmail.com',
-            pass: 'ebqsuevsbfrzmnxw'
-        }
-    });
-    
-    async enviarCredenciais(
-        nome: string,
-        email: string,
-        senha: string,
-        contextoAcesso: string
-    ) {
-        const conteudoHtml = `
+  constructor(config: ConfigService) {
+    const user = config.get<string>('SMTP_USER');
+    const pass = config.get<string>('SMTP_PASS');
+    this.from = config.get<string>('SMTP_FROM') || `"Sistema CRESCE" <${user}>`;
+    this.transporter =
+      user && pass
+        ? nodemailer.createTransport({
+            service: config.get<string>('SMTP_SERVICE') || 'gmail',
+            auth: { user, pass },
+          })
+        : null;
+  }
+
+  get configurado() {
+    return this.transporter !== null;
+  }
+
+  private async enviar(to: string, subject: string, html: string): Promise<boolean> {
+    if (!this.transporter) return false;
+    try {
+      await this.transporter.sendMail({ from: this.from, to, subject, html });
+      return true;
+    } catch (erro: any) {
+      this.logger.warn(`Falha ao enviar e-mail para ${to}: ${erro?.message}`);
+      return false;
+    }
+  }
+
+  enviarCredenciais(nome: string, email: string, senha: string, contextoAcesso: string) {
+    const conteudoHtml = `
             <p style="font-size:14px; color:#4b5563; line-height:1.6; margin-top:0;">
               ${contextoAcesso}
             </p>
@@ -29,21 +54,19 @@ export class EmailService {
               <p style="margin:6px 0; font-size:14px;"><strong>Senha:</strong> <span style="font-family:monospace; font-size:14px; color:#111827;">${senha}</span></p>
             </div>
         `;
+    return this.enviar(
+      email,
+      'Acesso ao Sistema CRESCE',
+      templateBaseSistemaCresce({
+        nome,
+        subtituloHeader: 'Controle e Registro Escolar de Suporte ao Comportamento e Evolução',
+        conteudoHtml,
+      }),
+    );
+  }
 
-        await this.transporter.sendMail({
-            from: '"Sistema CRESCE" <gerenciamentocresce@gmail.com>',
-            to: email,
-            subject: 'Acesso ao Sistema CRESCE',
-            html: templateBaseSistemaCresce({
-                nome,
-                subtituloHeader: 'Controle e Registro Escolar de Suporte ao Comportamento e Evolução',
-                conteudoHtml
-            }),
-        });
-    }
-
-    async enviarEmailAprovacao(nome: string, email: string, nomeInstituicao: string) {
-        const conteudoHtml = `
+  enviarEmailAprovacao(nome: string, email: string, nomeInstituicao: string) {
+    const conteudoHtml = `
             <p style="font-size:14px; color:#4b5563; line-height:1.6; margin-top:0;">
               Analisamos a solicitação de cadastro enviada para a instituição <strong>${nomeInstituicao}</strong>.
             </p>
@@ -54,21 +77,19 @@ export class EmailService {
               </p>
             </div>
         `;
+    return this.enviar(
+      email,
+      'Sua solicitação no Sistema CRESCE foi aprovada!',
+      templateBaseSistemaCresce({
+        nome,
+        subtituloHeader: 'Sua solicitação de cadastro foi aprovada',
+        conteudoHtml,
+      }),
+    );
+  }
 
-        await this.transporter.sendMail({
-            from: '"Sistema CRESCE" <gerenciamentocresce@gmail.com>',
-            to: email,
-            subject: 'Sua solicitação no Sistema CRESCE foi aprovada! 🎉',
-            html: templateBaseSistemaCresce({
-                nome,
-                subtituloHeader: 'Sua solicitação de cadastro foi aprovada',
-                conteudoHtml
-            }),
-        });
-    }
-
-    async enviarEmailReprovacao(nome: string, email: string, nomeInstituicao: string) {
-        const conteudoHtml = `
+  enviarEmailReprovacao(nome: string, email: string, nomeInstituicao: string) {
+    const conteudoHtml = `
             <p style="font-size:14px; color:#4b5563; line-height:1.6; margin-top:0;">
               Analisamos a solicitação de cadastro enviada para a instituição <strong>${nomeInstituicao}</strong>. Infelizmente ela foi recusada neste momento.
             </p>
@@ -83,17 +104,15 @@ export class EmailService {
               Caso queira corrigir os dados, sinta-se à vontade para submeter uma nova solicitação na plataforma.
             </p>
         `;
-
-        await this.transporter.sendMail({
-            from: '"Sistema CRESCE" <gerenciamentocresce@gmail.com>',
-            to: email,
-            subject: 'Atualização sobre sua solicitação no Sistema CRESCE',
-            html: templateBaseSistemaCresce({
-                nome,
-                subtituloHeader: 'Atualização sobre o status da sua solicitação',
-                conteudoHtml,
-                isErro: true
-            }),
-        });
-    }
+    return this.enviar(
+      email,
+      'Atualização sobre sua solicitação no Sistema CRESCE',
+      templateBaseSistemaCresce({
+        nome,
+        subtituloHeader: 'Atualização sobre o status da sua solicitação',
+        conteudoHtml,
+        isErro: true,
+      }),
+    );
+  }
 }
