@@ -1,55 +1,19 @@
-import { Link, NavLink } from "react-router-dom";
-import { FiGrid, FiUsers, FiUser, FiLayers, FiBook, FiBell, FiFileText, FiHome, FiLogOut } from "react-icons/fi";
-import "../../styles/sidebar.css";
+import { FiGrid, FiUsers, FiUser, FiLayers, FiBook, FiBell, FiFileText, FiHome } from "react-icons/fi";
+import { SidebarBase } from "../../components/SidebarBase";
 
 export function SidebarAdminEscolar() {
     return (
-        <nav className="sidebar">
-            <p>MENU</p>
-            <NavLink to="/admin-escolar/dashboard">
-                <FiGrid />
-                <span>Dashboard</span>
-            </NavLink>
-
-            <NavLink to="/admin-escolar/professores">
-                <FiUsers />
-                <span>Professores</span>
-            </NavLink>
-
-            <NavLink to="/admin-escolar/alunos">
-                <FiUser />
-                <span>Alunos</span>
-            </NavLink>
-
-            <NavLink to="/admin-escolar/turmas">
-                <FiLayers />
-                <span>Turmas</span>
-            </NavLink>
-
-            <NavLink to="/admin-escolar/disciplinas">
-                <FiBook />
-                <span>Disciplinas</span>
-            </NavLink>
-
-            <NavLink to="/admin-escolar/avisos">
-                <FiBell />
-                <span>Avisos</span>
-            </NavLink>
-
-            <NavLink to="/admin-escolar/relatoriofinal">
-                <FiFileText />
-                <span>Relatório Final</span>
-            </NavLink>
-
-            <NavLink to="/admin-escolar/escola">
-                <FiHome />
-                <span>Escola</span>
-            </NavLink>
-
-            <Link to="/login" className="logout">
-                <FiLogOut />
-                <span>Sair</span>
-            </Link>
-        </nav>
+        <SidebarBase
+            itens={[
+                { para: "/admin-escolar/dashboard", rotulo: "Dashboard", icone: FiGrid },
+                { para: "/admin-escolar/professores", rotulo: "Professores", icone: FiUsers },
+                { para: "/admin-escolar/alunos", rotulo: "Alunos", icone: FiUser },
+                { para: "/admin-escolar/turmas", rotulo: "Turmas", icone: FiLayers },
+                { para: "/admin-escolar/disciplinas", rotulo: "Disciplinas", icone: FiBook },
+                { para: "/admin-escolar/avisos", rotulo: "Avisos", icone: FiBell },
+                { para: "/admin-escolar/relatoriofinal", rotulo: "Relatório Final", icone: FiFileText },
+                { para: "/admin-escolar/escola", rotulo: "Escola", icone: FiHome },
+            ]}
+        />
     );
 }

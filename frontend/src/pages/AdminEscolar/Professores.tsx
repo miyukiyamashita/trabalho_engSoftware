@@ -1,337 +1,268 @@
 import { SidebarAdminEscolar } from "./SidebarAdminEscolar";
 import "./pageEscolar.css";
 import "./professores.css";
-import { useState, useEffect } from "react";
-import axios from "axios";
-import { validarCPF, validarTelefone, validarDataNascimento } from "../../utils/validadores";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FiEdit2, FiTrash2 } from "react-icons/fi";
+import { api } from "../../services/api";
+import { useFeedback } from "../../components/Feedback";
+import { useConfirm } from "../../components/ConfirmDialog";
+import { Carregando, ListaVazia } from "../../components/Campos";
+import { CampoTexto, diferencas, somenteAlterados, useFormulario } from "../../components/Formulario";
+import { lerErro } from "../../utils/erros";
+import { formatarData, hojeISO } from "../../utils/formatar";
+import { MSG, obrigatorios, validarCPF, validarDataPassada, validarEmail, validarTelefone } from "../../utils/validadores";
 
-const formInicial = {
-    nome: "",
-    cpf: "",
-    dataNascimento: "",
-    email: "",
-    telefone: "",
-    formacao: "",
+const formInicial = { nome: "", cpf: "", dataNascimento: "", email: "", telefone: "", formacao: "" };
+const ROTULOS = {
+  nome: "Nome completo",
+  cpf: "CPF",
+  dataNascimento: "Data de nascimento",
+  email: "E-mail",
+  telefone: "Telefone",
+  formacao: "Formação",
 };
 
+/** RF06: o administrador escolar cadastra, edita e exclui professores. */
 export function Professores() {
-    const [escolaId, setEscolaId] = useState<string>("");
-    const [aba, setAba] = useState<"cadastro" | "visualizacao">("cadastro");
-    const [listaProfessores, setListaProfessores] = useState<any[]>([]);
+  const feedback = useFeedback();
+  const { confirmar, avisar } = useConfirm();
+  const [aba, setAba] = useState<"cadastro" | "visualizacao">("cadastro");
+  const [lista, setLista] = useState<any[] | null>(null);
+  const [busca, setBusca] = useState("");
+  const [editando, setEditando] = useState<any>(null);
+  const [salvando, setSalvando] = useState(false);
+  const { form, setForm, erros, setErros, alterar } = useFormulario(formInicial);
 
-    const [form, setForm] = useState(formInicial);
-    const [camposInvalidos, setCamposInvalidos] = useState<string[]>([]);
+  const buscarProfessores = useCallback(async () => {
+    try {
+      const { data } = await api.get("/professores");
+      setLista(data);
+    } catch (e) {
+      setLista([]);
+      feedback.erro(lerErro(e, "Não foi possível carregar a lista de professores.").mensagem);
+    }
+  }, [feedback]);
 
-    const [carregando, setCarregando] = useState(false);
+  useEffect(() => {
+    if (aba === "visualizacao") buscarProfessores();
+  }, [aba, buscarProfessores]);
 
-    const [modal, setModal] = useState<{
-        visivel: boolean;
-        tipo: "sucesso" | "erro";
-        mensagem: string;
-    }>({
-        visivel: false,
-        tipo: "sucesso",
-        mensagem: "",
+  const filtrados = useMemo(() => {
+    const t = busca.trim().toLowerCase();
+    return (lista ?? []).filter((p) => !t || `${p.nome} ${p.cpf} ${p.email}`.toLowerCase().includes(t));
+  }, [lista, busca]);
+
+  function limpar() {
+    setForm(formInicial);
+    setErros({});
+    setEditando(null);
+  }
+
+  function cancelar() {
+    const voltarParaLista = Boolean(editando);
+    limpar();
+    if (voltarParaLista) setAba("visualizacao");
+  }
+
+  function editar(prof: any) {
+    setEditando(prof);
+    setForm({ ...formInicial, ...Object.fromEntries(Object.keys(formInicial).map((c) => [c, prof[c] ?? ""])) });
+    setErros({});
+    setAba("cadastro");
+  }
+
+  function validar() {
+    const e = obrigatorios(form, ROTULOS);
+    if (form.cpf && !validarCPF(form.cpf)) e.cpf = MSG.cpf;
+    if (form.telefone && !validarTelefone(form.telefone)) e.telefone = MSG.telefone;
+    if (form.email && !validarEmail(form.email)) e.email = MSG.email;
+    if (form.dataNascimento && !validarDataPassada(form.dataNascimento)) e.dataNascimento = MSG.data;
+    return e;
+  }
+
+  async function enviarProfessor(ev: React.FormEvent) {
+    ev.preventDefault();
+    const encontrados = validar();
+    setErros(encontrados);
+    if (Object.keys(encontrados).length > 0) {
+      feedback.erro("Há campos com problema. Corrija os itens destacados em vermelho.");
+      return;
+    }
+
+    if (editando) {
+      const mudancas = diferencas(editando, form, ROTULOS, (c, v) => (c === "dataNascimento" ? formatarData(v) : String(v ?? "")));
+      if (mudancas.length === 0) {
+        feedback.info("Nenhuma informação foi alterada.");
+        return;
+      }
+      const ok = await confirmar({
+        titulo: "Salvar alterações do professor?",
+        mensagem: `Confira as alterações em ${editando.nome}:`,
+        detalhes: mudancas,
+        textoConfirmar: "Salvar alterações",
+      });
+      if (!ok) return;
+    }
+
+    setSalvando(true);
+    try {
+      if (editando) {
+        await api.patch(`/professores/${editando.id}`, somenteAlterados(editando, form, Object.keys(formInicial)));
+        feedback.sucesso(`Dados de ${form.nome} atualizados com sucesso.`);
+        limpar();
+        setAba("visualizacao");
+      } else {
+        const { data } = await api.post("/professores", form);
+        feedback.sucesso(`Professor ${data.nome} cadastrado com sucesso.`);
+        limpar();
+        if (data.senhaTemporaria) {
+          await avisar({
+            titulo: "Anote a senha do professor",
+            icone: "senha",
+            mensagem: "O e-mail não pôde ser enviado (modo demonstração). Repasse estes dados ao professor. A senha não será mostrada de novo.",
+            detalhes: [["E-mail", data.email], ["Senha", data.senhaTemporaria]],
+          });
+        } else if (data.emailEnviado) {
+          feedback.info(`A senha de acesso foi enviada para ${data.email}.`);
+        }
+      }
+    } catch (e) {
+      const { mensagem, campos } = lerErro(e, "Não foi possível salvar o professor.");
+      setErros(campos);
+      feedback.erro(mensagem);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function excluirProfessor(prof: any) {
+    const ok = await confirmar({
+      titulo: `Excluir o professor ${prof.nome}?`,
+      mensagem: "O acesso dele ao sistema também será removido. Esta ação não pode ser desfeita.",
+      detalhes: [["CPF", prof.cpf], ["E-mail", prof.email]],
+      textoConfirmar: "Excluir professor",
+      perigo: true,
     });
-
-    useEffect(() => {
-        carregarDadosEscola();
-    }, []);
-
-    useEffect(() => {
-        if (aba === "visualizacao" && escolaId) {
-            buscarProfessores(escolaId);
-        }
-    }, [aba, escolaId]);
-
-    async function carregarDadosEscola() {
-        try {
-            const emailUsuario = localStorage.getItem("usuario_email");
-
-            if (!emailUsuario) {
-                acionarModal("erro", "Sessão inválida. Faça login novamente.");
-                return;
-            }
-    
-            const adminResponse = await axios.get(
-                `http://localhost:3001/administradoresEscolares?email=${emailUsuario}`
-            );
-            
-            if (adminResponse.data.length > 0) {
-                const idDaEscola = adminResponse.data[0].escolaId;
-                setEscolaId(idDaEscola); 
-                
-                if (aba === "visualizacao") {
-                    buscarProfessores(idDaEscola);
-                }
-            }
-        } catch (error) {
-            console.error("Erro ao carregar dados iniciais da escola:", error);
-        }
+    if (!ok) return;
+    try {
+      await api.delete(`/professores/${prof.id}`);
+      feedback.sucesso(`Professor ${prof.nome} excluído com sucesso.`);
+      buscarProfessores();
+    } catch (e) {
+      feedback.erro(lerErro(e, "Não foi possível excluir o professor.").mensagem);
     }
+  }
 
-    async function buscarProfessores(idAlvo = escolaId) {
-        if (!idAlvo) return;
-        try {
-            const escolaResponse = await axios.get(`http://localhost:3001/escolas/${idAlvo}`);
-            const cpfsProfsDaEscola = escolaResponse.data.professores || [];
+  const campo = (nome: keyof typeof formInicial, tipo = "text", placeholder = "", dica?: string) => (
+    <CampoTexto
+      id={`prof-${nome}`}
+      nome={nome}
+      rotulo={`${ROTULOS[nome]}:`}
+      valor={form[nome]}
+      erros={erros}
+      onChange={alterar}
+      tipo={tipo}
+      placeholder={placeholder}
+      dica={dica}
+      max={tipo === "date" ? hojeISO() : undefined}
+    />
+  );
 
-            const todosProfsResponse = await axios.get("http://localhost:3000/professores");
-            const todosProfs = todosProfsResponse.data;
+  return (
+    <>
+      <main className="conteudo-principal">
+        <div className="cabecalho-abas">
+          <div className="botoes-alternador" role="tablist" aria-label="Modo da tela">
+            <button type="button" role="tab" aria-selected={aba === "cadastro"} className={aba === "cadastro" ? "botao-aba ativo" : "botao-aba"} onClick={() => setAba("cadastro")}>
+              {editando ? "Editar" : "Cadastrar"}
+            </button>
+            <button type="button" role="tab" aria-selected={aba === "visualizacao"} className={aba === "visualizacao" ? "botao-aba ativo" : "botao-aba"} onClick={() => { limpar(); setAba("visualizacao"); }}>
+              Visualizar
+            </button>
+          </div>
+          <h1 className="titulo-pagina">
+            {aba === "cadastro" ? (editando ? "Editar professor" : "Cadastro de professores") : "Professores da escola"}
+          </h1>
+        </div>
 
-            const profsFiltrados = todosProfs.filter((professor: any) =>
-                cpfsProfsDaEscola.includes(professor.cpf)
-            );
-
-            setListaProfessores(profsFiltrados);
-        } catch (error) {
-            console.error(error);
-            acionarModal("erro", "Erro ao carregar a lista de professores.");
-        }
-    }
-
-    function acionarModal(tipo: "sucesso" | "erro", mensagem: string) {
-        setModal({ visivel: true, tipo, mensagem });
-        setTimeout(() => {
-            setModal((prev) => ({ ...prev, visivel: false }));
-        }, 3000);
-    }
-
-    function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const { name, value } = e.target;
-        setForm((prev) => ({
-            ...prev,
-            [name]: value,
-        }));
-        setCamposInvalidos((prev) => prev.filter((item) => item !== name));
-    }
-
-    async function deletarProf(profId: string) {
-        const confirmar = window.confirm(
-            "Tem certeza que deseja excluir este professor?"
-        );
-    
-        if (!confirmar) return;
-
-        try {
-            await axios.delete(`http://localhost:3000/professores/${profId}?escolaId=${escolaId}`);
-            
-            acionarModal("sucesso", "Professor removido com sucesso!");
-            buscarProfessores(escolaId);
-        } catch (error: any) {
-            console.error(error);
-    
-            acionarModal(
-                "erro",
-                error.response?.data?.message || "Erro ao deletar o professor."
-            );
-        }
-    }
-
-    async function enviarProfessor(e: React.FormEvent) {
-        e.preventDefault();
-
-        const erros: string[] = [];
-
-        if (!validarCPF(form.cpf)) {
-            erros.push("cpfProfessor");
-        }
-
-        if (!validarTelefone(form.telefone)) {
-            erros.push("telefoneProfessor");
-        }
-
-        if (!validarDataNascimento(form.dataNascimento)) {
-            erros.push("dataNascimentoProfessor");
-        }
-
-        setCamposInvalidos(erros);
-
-        if (erros.length > 0) return;
-
-        setCarregando(true);
-
-        try {
-            await axios.post("http://localhost:3000/professores", {
-                ...form,
-                escolaId: escolaId
-            });
-
-            acionarModal("sucesso", "Professor cadastrado com sucesso!");
-            setForm(formInicial);
-            setCamposInvalidos([]);
-            buscarProfessores(escolaId);
-        } catch (error) {
-            console.error(error);
-            acionarModal("erro", "Erro ao cadastrar professor.");
-        } finally {
-            setCarregando(false);
-        }
-    }
-
-    return (
-        <>
-            {modal.visivel && (
-                <div className="modal-overlay">
-                    <div className={`modal-caixa modal-${modal.tipo}`}>
-                        <p>{modal.mensagem}</p>
-                    </div>
+        {aba === "cadastro" ? (
+          <div className="container-cadastro-professores">
+            <form className="formulario-cadastro-professores" onSubmit={enviarProfessor} noValidate>
+              <div className="linha-formulario">
+                {campo("nome", "text", "Digite o nome do professor")}
+                {campo("cpf", "text", "000.000.000-00")}
+              </div>
+              <div className="linha-formulario">
+                {campo("dataNascimento", "date")}
+                {campo("email", "email", "email@exemplo.com", "Será usado para entrar no sistema.")}
+              </div>
+              <div className="linha-formulario">
+                {campo("telefone", "tel", "(00) 00000-0000")}
+                {campo("formacao", "text", "Ex.: Licenciatura em Matemática")}
+              </div>
+              <div className="acoes-formulario">
+                <button type="button" className="botao-secundario" onClick={cancelar}>
+                  Cancelar
+                </button>
+                <button type="submit" className="botao-primario" disabled={salvando}>
+                  {salvando ? "Salvando..." : editando ? "Salvar alterações" : "Salvar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <div className="container-tabela-professores">
+            <div style={{ width: "100%" }}>
+              <div className="barra-filtros">
+                <label>
+                  Buscar professor
+                  <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome, CPF ou e-mail" />
+                </label>
+              </div>
+              {lista === null ? (
+                <Carregando texto="Carregando professores..." />
+              ) : filtrados.length === 0 ? (
+                <ListaVazia texto={busca ? "Nenhum professor encontrado para a busca." : "Nenhum professor cadastrado ainda. Use a aba Cadastrar."} />
+              ) : (
+                <div className="tabela-wrapper">
+                  <table className="tabela-professores">
+                    <thead>
+                      <tr>
+                        <th scope="col">Professor - CPF</th>
+                        <th scope="col">E-mail</th>
+                        <th scope="col">Telefone</th>
+                        <th scope="col">Formação</th>
+                        <th scope="col">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtrados.map((prof) => (
+                        <tr key={prof.id}>
+                          <td>{prof.nome} - {prof.cpf}</td>
+                          <td>{prof.email}</td>
+                          <td>{prof.telefone}</td>
+                          <td>{prof.formacao}</td>
+                          <td>
+                            <div className="acoes-tabela">
+                              <button type="button" className="botao-editar" onClick={() => editar(prof)} aria-label={`Editar ${prof.nome}`}>
+                                <FiEdit2 aria-hidden="true" /> Editar
+                              </button>
+                              <button type="button" className="botao-perigo" onClick={() => excluirProfessor(prof)} aria-label={`Excluir ${prof.nome}`}>
+                                <FiTrash2 aria-hidden="true" /> Excluir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-            )}
-
-            <div className="conteudo-principal">
-                <div className="cabecalho-abas">
-                    <div className="botoes-alternador">
-                        <button
-                            className={aba === "cadastro" ? "botao-aba ativo" : "botao-aba"}
-                            onClick={() => setAba("cadastro")}
-                        >
-                            Cadastrar
-                        </button>
-                        <button
-                            className={aba === "visualizacao" ? "botao-aba ativo" : "botao-aba"}
-                            onClick={() => setAba("visualizacao")}
-                        >
-                            Visualizar
-                        </button>
-                    </div>
-                    <h1 className="titulo-pagina">
-                        {aba === "cadastro" ? "Cadastro de Professores" : "Visualização de Professor"}
-                    </h1>
-                </div>
-
-                {aba === "cadastro" ? (
-                    <div className="container-cadastro-professores">
-                        <form className="formulario-cadastro-professores" onSubmit={enviarProfessor}>
-                            <div className="linha-formulario">
-                                <div className="campo">
-                                    <label>Nome Completo:</label>
-                                    <input
-                                        type="text"
-                                        name="nome"
-                                        value={form.nome}
-                                        onChange={handleChange}
-                                        placeholder="Digite o nome do professor"
-                                        required
-                                    />
-                                </div>
-                                <div className="campo">
-                                    <label>CPF:</label>
-                                    <input
-                                        type="text"
-                                        name="cpf"
-                                        value={form.cpf}
-                                        onChange={handleChange}
-                                        placeholder="000.000.000-00"
-                                        required
-                                        className={camposInvalidos.includes("cpf") ? "campo-invalido" : ""}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="linha-formulario">
-                                <div className="campo">
-                                    <label>Data de Nascimento:</label>
-                                    <input
-                                        type="text"
-                                        name="dataNascimento"
-                                        value={form.dataNascimento}
-                                        onChange={handleChange}
-                                        placeholder="dd/mm/aaaa"
-                                        required
-                                        className={camposInvalidos.includes("dataNascimentoP") ? "campo-invalido" : ""}
-                                    />
-                                </div>
-                                <div className="campo">
-                                    <label>E-mail:</label>
-                                    <input
-                                        type="email"
-                                        name="email"
-                                        value={form.email}
-                                        onChange={handleChange}
-                                        placeholder="email@exemplo.com"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="linha-formulario">
-                                <div className="campo">
-                                    <label>Telefone:</label>
-                                    <input
-                                        type="text"
-                                        name="telefone"
-                                        value={form.telefone}
-                                        onChange={handleChange}
-                                        placeholder="(00) 00000-0000"
-                                        required
-                                        className={camposInvalidos.includes("telefone") ? "campo-invalido" : ""}
-                                    />
-                                </div>
-                                <div className="campo">
-                                    <label>Formação:</label>
-                                    <input
-                                        type="text"
-                                        name="formacao"
-                                        value={form.formacao}
-                                        onChange={handleChange}
-                                        placeholder="Ex: Licenciatura em Matemática"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div className="botao-enviar-professores">
-                                <button type="submit" disabled={carregando}>
-                                    {carregando ? "Salvando..." : "Salvar"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                ) : (
-                    <div className="container-tabela-professores">
-                        <div className="tabela-wrapper">
-                            <table className="tabela-professores">
-                                <thead>
-                                    <tr>
-                                        <th>Professor - CPF</th>
-                                        <th>E-mail</th>
-                                        <th>Telefone</th>
-                                        <th>Formação</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {listaProfessores.map((prof, index) => {
-                                        const nome = prof.nome;
-                                        const cpf = prof.cpf;
-                                        const email = prof.email;
-                                        const telefone = prof.telefone;
-                                        const formacao = prof.formacao;
-
-                                        return (
-                                            <tr key={prof.id || index}>
-                                                <td>
-                                                    {nome} {nome && cpf ? " - " : ""} {cpf}
-                                                </td>
-                                                <td>{email}</td>
-                                                <td>{telefone}</td>
-                                                <td>{formacao}</td>
-                                                <td>
-                                                    <button className="botao-deletar" 
-                                                    onClick={() => deletarProf(prof.id)}>
-                                                    Deletar
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
+              )}
             </div>
-            <SidebarAdminEscolar />
-        </>
-    );
+          </div>
+        )}
+      </main>
+      <SidebarAdminEscolar />
+    </>
+  );
 }
