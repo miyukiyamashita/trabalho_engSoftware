@@ -63,3 +63,90 @@
     background: transparent !important;
     opacity: 0.8;
 }
+
+/* "Sair" agora é um botão que encerra a sessão (T10), com o mesmo visual dos links */
+.sidebar .logout {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    color: white;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+.sidebar .logout svg {
+    font-size: 18px;
+    min-width: 18px;
+}
+
+/* "Como usar" logo acima do Sair */
+.sidebar .sidebar-ajuda {
+    margin-top: auto;
+}
+
+.sidebar .sidebar-ajuda + .logout {
+    margin-top: 0;
+}
+
+.sidebar a:focus-visible,
+.sidebar .logout:focus-visible,
+.sidebar-alternar:focus-visible {
+    outline: 3px solid #ffd166;
+    outline-offset: 2px;
+}
+
+.sidebar {
+    overflow-y: auto;
+    z-index: 900;
+}
+
+/* Botão do menu recolhível: só aparece em telas pequenas (T31) */
+.sidebar-alternar,
+.sidebar-fundo {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .sidebar-alternar {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 950;
+        padding: 10px 14px;
+        border: none;
+        border-radius: 10px;
+        background-color: #001CA9;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        width: min(280px, 85vw);
+        padding-top: 70px;
+    }
+
+    .sidebar.aberta {
+        transform: translateX(0);
+    }
+
+    .sidebar-fundo {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 899;
+    }
+}
