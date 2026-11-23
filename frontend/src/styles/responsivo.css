@@ -111,6 +111,7 @@ img {
 
     .card-aviso {
         width: 100% !important;
+        flex: 0 0 auto !important;
         box-sizing: border-box;
     }
 

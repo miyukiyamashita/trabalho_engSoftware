@@ -1,6 +1,6 @@
 .paginaProf {
     min-height: 100vh;
-    width: calc(100vw - 280px);
+    width: calc(100% - 280px);
     margin-left: 280px;
     box-sizing: border-box;
     padding: 40px;
