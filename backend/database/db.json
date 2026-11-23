@@ -1,46 +1,471 @@
 {
   "usuarios": [
     {
-      "id": "1",
-      "nome": "Administrador Sistema",
-      "email": "adminsistema@cresce.com",
-      "senha": "$2b$10$xkNhn0LPYww8i.qEAe6Njey6VIBAkI/wT8mGeZJqqHQYU7K./FdW2",
-      "tipo": "admin_sistema"
+      "id": "u-alfredo",
+      "nome": "Alfredo Martins",
+      "email": "alfredo@cresce.test",
+      "senha": "$2b$10$hPoE4tABH7zooqwGuY4DzeaxgmOMmTZMkk0cF4G./jE7lURs443Ri",
+      "tipo": "admin_sistema",
+      "escolaId": null,
+      "perfilId": null
     },
     {
-      "id": "2",
-      "nome": "Administrador Escolar",
-      "email": "adminescolar@cresce.com",
-      "senha": "$2b$10$f8.NKxPeuyn8o0pMKi2D0Ozx3QvrodNOKBy3MuDa8AtZnS.by/1aO",
-      "tipo": "admin_escolar"
+      "id": "u-michele",
+      "nome": "Michele Andrade",
+      "email": "michele@cresce.test",
+      "senha": "$2b$10$hPoE4tABH7zooqwGuY4DzeaxgmOMmTZMkk0cF4G./jE7lURs443Ri",
+      "tipo": "admin_escolar",
+      "escolaId": "esc-crescer",
+      "perfilId": "adm-michele"
     },
     {
-      "id": "3",
-      "nome": "Professor",
-      "email": "prof@cresce.com",
-      "senha": "$2b$10$o3Ad0sBj27jWfmLEa5Zd6uIwu4qU4Wfk46OuTfWyVkVzI5RzpA6Qy",
-      "tipo": "prof"
+      "id": "u-lorenza",
+      "nome": "Lorenza Prado",
+      "email": "lorenza@cresce.test",
+      "senha": "$2b$10$hPoE4tABH7zooqwGuY4DzeaxgmOMmTZMkk0cF4G./jE7lURs443Ri",
+      "tipo": "prof",
+      "escolaId": "esc-crescer",
+      "perfilId": "prof-lorenza"
     },
     {
-      "id": "4",
-      "nome": "Responsável",
-      "email": "responsavel@cresce.com",
-      "senha": "$2b$10$t5.WHzut6oAsgcs7Hg6jqO1bQ1K4ZprIVALngBU19sHMUQg7HsLE2",
-      "tipo": "responsavel"
+      "id": "u-breno",
+      "nome": "Breno Souza",
+      "email": "breno@cresce.test",
+      "senha": "$2b$10$hPoE4tABH7zooqwGuY4DzeaxgmOMmTZMkk0cF4G./jE7lURs443Ri",
+      "tipo": "responsavel",
+      "escolaId": "esc-crescer",
+      "perfilId": null
+    },
+    {
+      "id": "u-carla",
+      "nome": "Carla Lima",
+      "email": "carla@cresce.test",
+      "senha": "$2b$10$hPoE4tABH7zooqwGuY4DzeaxgmOMmTZMkk0cF4G./jE7lURs443Ri",
+      "tipo": "responsavel",
+      "escolaId": "esc-crescer",
+      "perfilId": null
     }
   ],
-  "alunos": [],
-  "professores": [],
+  "escolas": [
+    {
+      "id": "esc-crescer",
+      "nome": "Escola Municipal Crescer",
+      "cnpj": "12.345.678/0001-90",
+      "endereco": "Rua das Acácias, 120 - Centro",
+      "telefone": "(32) 3215-4000",
+      "email": "contato@crescer.test",
+      "setorEducacional": "fundamental",
+      "numeroAlunos": "101-500",
+      "dataRegistro": "2026-09-24T12:00:00.000Z",
+      "alunos": [
+        "123.456.789-09",
+        "987.654.321-00"
+      ],
+      "professores": [
+        "111.444.777-35"
+      ],
+      "disciplinas": [
+        "MAT501",
+        "POR501"
+      ],
+      "turmas": [
+        "5º Ano A"
+      ],
+      "avisos": [
+        "2026-11-21T13:00:00.000Z"
+      ]
+    }
+  ],
+  "administradoresEscolares": [
+    {
+      "id": "adm-michele",
+      "nome": "Michele Andrade",
+      "email": "michele@cresce.test",
+      "cargo": "Diretora",
+      "cpf": "529.982.247-25",
+      "escolaId": "esc-crescer"
+    }
+  ],
+  "professores": [
+    {
+      "id": "prof-lorenza",
+      "nome": "Lorenza Prado",
+      "email": "lorenza@cresce.test",
+      "cpf": "111.444.777-35",
+      "telefone": "(32) 99999-1234",
+      "dataNascimento": "1988-03-14",
+      "formacao": "Licenciatura em Pedagogia",
+      "escolaId": "esc-crescer"
+    }
+  ],
+  "alunos": [
+    {
+      "id": "aluno-ana",
+      "nomeAluno": "Ana Souza",
+      "cpfAluno": "123.456.789-09",
+      "dataNascimentoAluno": "2016-05-20",
+      "nomeResponsavel": "Breno Souza",
+      "emailResponsavel": "breno@cresce.test",
+      "telefoneResponsavel": "(32) 98888-1111",
+      "escolaId": "esc-crescer"
+    },
+    {
+      "id": "aluno-pedro",
+      "nomeAluno": "Pedro Lima",
+      "cpfAluno": "987.654.321-00",
+      "dataNascimentoAluno": "2016-09-02",
+      "nomeResponsavel": "Carla Lima",
+      "emailResponsavel": "carla@cresce.test",
+      "telefoneResponsavel": "(32) 98888-2222",
+      "escolaId": "esc-crescer"
+    }
+  ],
   "responsaveis": [],
-  "turmas": [],
-  "disciplinas": [],
-  "avisos": [],
-  "solicitacoesCadastro": [],
+  "disciplinas": [
+    {
+      "id": "disc-mat",
+      "nomeDisciplina": "Matemática",
+      "codigo": "MAT501",
+      "cargaHoraria": 5,
+      "areaConhecimento": "Exatas",
+      "descricao": "Números, operações e geometria do 5º ano.",
+      "professorId": "prof-lorenza",
+      "escolaId": "esc-crescer"
+    },
+    {
+      "id": "disc-por",
+      "nomeDisciplina": "Língua Portuguesa",
+      "codigo": "POR501",
+      "cargaHoraria": 5,
+      "areaConhecimento": "Linguagens",
+      "descricao": "Leitura, escrita e interpretação de textos.",
+      "professorId": "prof-lorenza",
+      "escolaId": "esc-crescer"
+    }
+  ],
+  "turmas": [
+    {
+      "id": "turma-5a",
+      "nomeTurma": "5º Ano A",
+      "capacidade": 30,
+      "anoSerie": "5",
+      "turno": "Manhã",
+      "alunos": [
+        "aluno-ana",
+        "aluno-pedro"
+      ],
+      "disciplinas": [
+        "disc-mat",
+        "disc-por"
+      ],
+      "escolaId": "esc-crescer"
+    }
+  ],
+  "notas": [
+    {
+      "id": "n1",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-mat",
+      "alunoId": "aluno-ana",
+      "escolaId": "esc-crescer",
+      "bim1": 20,
+      "bim2": 18.5,
+      "bim3": 21,
+      "bim4": null
+    },
+    {
+      "id": "n2",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-por",
+      "alunoId": "aluno-ana",
+      "escolaId": "esc-crescer",
+      "bim1": 22,
+      "bim2": 21,
+      "bim3": 23,
+      "bim4": null
+    },
+    {
+      "id": "n3",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-mat",
+      "alunoId": "aluno-pedro",
+      "escolaId": "esc-crescer",
+      "bim1": 14,
+      "bim2": 16,
+      "bim3": 15.5,
+      "bim4": null
+    },
+    {
+      "id": "n4",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-por",
+      "alunoId": "aluno-pedro",
+      "escolaId": "esc-crescer",
+      "bim1": 19,
+      "bim2": 17,
+      "bim3": 18,
+      "bim4": null
+    }
+  ],
+  "frequencia": [
+    {
+      "id": "f-disc-mat-0",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-mat",
+      "data": "2026-11-20",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    },
+    {
+      "id": "f-disc-mat-1",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-mat",
+      "data": "2026-11-18",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": false
+        }
+      ]
+    },
+    {
+      "id": "f-disc-mat-2",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-mat",
+      "data": "2026-11-16",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    },
+    {
+      "id": "f-disc-mat-3",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-mat",
+      "data": "2026-11-14",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": false
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    },
+    {
+      "id": "f-disc-mat-4",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-mat",
+      "data": "2026-11-12",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": false
+        }
+      ]
+    },
+    {
+      "id": "f-disc-mat-5",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-mat",
+      "data": "2026-11-10",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    },
+    {
+      "id": "f-disc-por-0",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-por",
+      "data": "2026-11-20",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    },
+    {
+      "id": "f-disc-por-1",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-por",
+      "data": "2026-11-18",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    },
+    {
+      "id": "f-disc-por-2",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-por",
+      "data": "2026-11-16",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": false
+        }
+      ]
+    },
+    {
+      "id": "f-disc-por-3",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-por",
+      "data": "2026-11-14",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    },
+    {
+      "id": "f-disc-por-4",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-por",
+      "data": "2026-11-12",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    },
+    {
+      "id": "f-disc-por-5",
+      "turmaId": "turma-5a",
+      "disciplinaId": "disc-por",
+      "data": "2026-11-10",
+      "escolaId": "esc-crescer",
+      "chamada": [
+        {
+          "alunoId": "aluno-ana",
+          "presente": true
+        },
+        {
+          "alunoId": "aluno-pedro",
+          "presente": true
+        }
+      ]
+    }
+  ],
+  "avisos": [
+    {
+      "id": "aviso-reuniao",
+      "publico": [
+        "turma-5a"
+      ],
+      "tipoAviso": "alerta",
+      "tituloAviso": "Reunião de pais e responsáveis",
+      "descricao": "Reunião na próxima sexta-feira, às 18h, no auditório. Assuntos: resultados do 3º bimestre e passeio escolar.",
+      "dataCriacao": "2026-11-21T13:00:00.000Z",
+      "escolaId": "esc-crescer",
+      "remetenteId": "u-michele",
+      "tipoRemetente": "admin_escolar",
+      "nomeRemetente": "Michele Andrade",
+      "responsaveisQueLeram": []
+    }
+  ],
+  "relatorios": [],
+  "solicitacoesCadastro": [
+    {
+      "id": "sol-horizonte",
+      "nomeInstituicao": "Escola Estadual Horizonte",
+      "cnpj": "98.765.432/0001-10",
+      "endereco": "Av. Brasil, 900 - Bairro Novo",
+      "telefone": "(32) 3222-5555",
+      "emailInstituicao": "secretaria@horizonte.test",
+      "setorEducacional": "fundamental",
+      "nomeRepresentante": "Roberto Alves",
+      "cpfRepresentante": "390.533.447-05",
+      "emailRepresentante": "roberto@horizonte.test",
+      "cargo": "Diretor",
+      "numeroAlunos": "501-1000",
+      "status": "PENDENTE",
+      "dataSolicitacao": "2026-11-22T10:00:00.000Z"
+    },
+    {
+      "id": "sol-aurora",
+      "nomeInstituicao": "Colégio Aurora",
+      "cnpj": "11.222.333/0001-81",
+      "endereco": "Rua Sete, 45",
+      "telefone": "(32) 3233-1010",
+      "emailInstituicao": "contato@aurora.test",
+      "setorEducacional": "infantil",
+      "nomeRepresentante": "Sônia Reis",
+      "cpfRepresentante": "714.602.380-01",
+      "emailRepresentante": "sonia@aurora.test",
+      "cargo": "Coordenadora",
+      "numeroAlunos": "0-100",
+      "status": "REJEITADA",
+      "dataSolicitacao": "2026-11-13T10:00:00.000Z",
+      "dataDecisao": "2026-11-15T10:00:00.000Z"
+    }
+  ],
   "solicitacoesEdicao": [],
-  "solicitacoesRemocao": [],
-  "escolas": [],
-  "administradoresEscolares": [],
-  "notas": [],
-  "frequencia": [],
-  "$schema": "./node_modules/json-server/schema.json"
+  "solicitacoesRemocao": []
 }
