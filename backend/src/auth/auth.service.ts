@@ -1,31 +1,37 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import axios from 'axios';
+import * as bcrypt from 'bcrypt';
 import { LoginDto } from './login.dto';
-import { Usuario } from '../classes/Usuario';
+import { DbService } from '../common/db.service';
+import { normalizarEmail, semSenha } from '../usuarios/usuarios.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly db: DbService,
+  ) {}
 
   async login(loginDto: LoginDto) {
-    const url = 'http://localhost:3001/usuarios';
+    const [usuario] = await this.db.list('usuarios', { email: normalizarEmail(loginDto.email) });
 
-    const response = await axios.get(url);
-    const usuarios: Usuario[] = response.data;
+    // Comparação com hash bcrypt (T3). A mensagem é a mesma para e-mail ou senha errados.
+    const senhaConfere =
+      usuario && typeof usuario.senha === 'string'
+        ? await bcrypt.compare(loginDto.senha, usuario.senha)
+        : false;
 
-    const usuario = usuarios.find(
-      (u) => u.email === loginDto.email && u.senha === loginDto.senha,
-    );
-
-    if (!usuario) {
-      throw new UnauthorizedException('Credenciais inválidas');
+    if (!usuario || !senhaConfere) {
+      throw new UnauthorizedException('E-mail ou senha inválidos. Confira os dados e tente novamente.');
     }
 
     const payload = {
       sub: usuario.id,
       email: usuario.email,
       tipo: usuario.tipo,
+      nome: usuario.nome,
+      escolaId: usuario.escolaId ?? null,
+      perfilId: usuario.perfilId ?? null,
     };
 
     return {
@@ -33,5 +39,18 @@ export class AuthService {
       tipo: usuario.tipo,
       nome: usuario.nome,
     };
+  }
+
+  /** Perfil completo do usuário logado (substitui o uso de localStorage.usuario_email, T11). */
+  async perfil(user: { id: string }) {
+    const usuario = await this.db.get('usuarios', user.id, 'Usuário não encontrado.');
+    const resposta: any = semSenha(usuario);
+    if (usuario.escolaId) {
+      const escola = await this.db.find('escolas', usuario.escolaId);
+      resposta.escola = escola
+        ? { id: escola.id, nome: escola.nome, setorEducacional: escola.setorEducacional }
+        : null;
+    }
+    return resposta;
   }
 }

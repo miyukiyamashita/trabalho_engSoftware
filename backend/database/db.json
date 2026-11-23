@@ -4,28 +4,28 @@
       "id": "1",
       "nome": "Administrador Sistema",
       "email": "adminsistema@cresce.com",
-      "senha": "123456",
+      "senha": "$2b$10$xkNhn0LPYww8i.qEAe6Njey6VIBAkI/wT8mGeZJqqHQYU7K./FdW2",
       "tipo": "admin_sistema"
     },
     {
       "id": "2",
       "nome": "Administrador Escolar",
       "email": "adminescolar@cresce.com",
-      "senha": "123456",
+      "senha": "$2b$10$f8.NKxPeuyn8o0pMKi2D0Ozx3QvrodNOKBy3MuDa8AtZnS.by/1aO",
       "tipo": "admin_escolar"
     },
     {
       "id": "3",
       "nome": "Professor",
       "email": "prof@cresce.com",
-      "senha": "123456",
+      "senha": "$2b$10$o3Ad0sBj27jWfmLEa5Zd6uIwu4qU4Wfk46OuTfWyVkVzI5RzpA6Qy",
       "tipo": "prof"
     },
     {
       "id": "4",
       "nome": "Responsável",
       "email": "responsavel@cresce.com",
-      "senha": "123456",
+      "senha": "$2b$10$t5.WHzut6oAsgcs7Hg6jqO1bQ1K4ZprIVALngBU19sHMUQg7HsLE2",
       "tipo": "responsavel"
     }
   ],

@@ -1,32 +1,34 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
 import { ProfessoresService } from './professores.service';
+import { Usuario } from '../common/decorators';
+import type { UsuarioLogado } from '../common/escopo';
 
 @Controller('professores')
 export class ProfessoresController {
-    constructor(private readonly service: ProfessoresService) {}
-    
-    @Get()
-    findAll() {
-        return this.service.findAll();
-    }
-    
-    @Post()
-    create(@Body() body: any) {
-        return this.service.create(body);
-    }
+  constructor(private readonly service: ProfessoresService) {}
 
-    @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.service.findOne(id);
-    }
-    
-    @Put(':id')
-    update(@Param('id') id: string, @Body() body: any) {
-        return this.service.update(id, body);
-    }
-    
-    @Delete(':id')
-    remove(@Param('id') id: string, @Query('escolaId') escolaId: string) {
-        return this.service.remove(id, escolaId);
-    }
+  @Get()
+  findAll(@Usuario() user: UsuarioLogado) {
+    return this.service.findAll(user);
+  }
+
+  @Post()
+  create(@Body() body: any, @Usuario() user: UsuarioLogado) {
+    return this.service.create(body, user);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string, @Usuario() user: UsuarioLogado) {
+    return this.service.findOne(id, user);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() body: any, @Usuario() user: UsuarioLogado) {
+    return this.service.update(id, body, user);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string, @Usuario() user: UsuarioLogado) {
+    return this.service.remove(id, user);
+  }
 }

@@ -3,6 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { DbModule } from './common/db.service';
+import { AcessoModule } from './common/acesso.service';
+import { UsuariosModule } from './usuarios/usuarios.service';
 import { ProfessoresModule } from './professores/professores.module';
 import { SolicitacaoCadastroModule } from './solicitacao-cadastro/solicitacao-cadastro.module';
 import { AlunosModule } from './alunos/alunos.module';
@@ -22,6 +25,9 @@ import { FrequenciaModule } from './frequencia/frequencia.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    DbModule,
+    AcessoModule,
+    UsuariosModule,
     AuthModule,
     ProfessoresModule,
     SolicitacaoCadastroModule,
