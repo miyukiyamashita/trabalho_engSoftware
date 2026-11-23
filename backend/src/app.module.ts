@@ -22,6 +22,7 @@ import { SolicitacaoRemocaoModule } from './solicitacao-remocao/solicitacao-remo
 import { NotasModule } from './notas/notas.module';
 import { FrequenciaModule } from './frequencia/frequencia.module';
 import { PainelModule } from './painel/painel.controller';
+import { RelatoriosModule } from './relatorios/relatorios.controller';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PainelModule } from './painel/painel.controller';
     NotasModule,
     FrequenciaModule,
     PainelModule,
+    RelatoriosModule,
   ],
   controllers: [AppController],
   providers: [
