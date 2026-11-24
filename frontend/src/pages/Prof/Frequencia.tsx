@@ -5,7 +5,7 @@ import { FiCheckSquare, FiSquare } from "react-icons/fi";
 import { api } from "../../services/api";
 import { useFeedback } from "../../components/Feedback";
 import { useConfirm } from "../../components/ConfirmDialog";
-import { Carregando, ListaVazia } from "../../components/Campos";
+import { CampoErro, Carregando, ListaVazia, propsErro } from "../../components/Campos";
 import { lerErro } from "../../utils/erros";
 import { formatarData, hojeISO } from "../../utils/formatar";
 
@@ -22,6 +22,7 @@ export function Frequencia() {
   const [presencas, setPresencas] = useState<Record<string, boolean>>({});
   const [registroExistente, setRegistroExistente] = useState<any>(null);
   const [salvando, setSalvando] = useState(false);
+  const [erros, setErros] = useState<Record<string, string>>({});
 
   useEffect(() => {
     Promise.all([api.get("/turmas"), api.get("/disciplinas")])
@@ -78,6 +79,12 @@ export function Frequencia() {
 
   async function salvarFrequencia(e: React.FormEvent) {
     e.preventDefault();
+    // H5/H9: data futura é barrada antes do envio, com o motivo junto ao campo.
+    if (data > hojeISO()) {
+      setErros({ data: "A data da aula não pode ser futura. Escolha hoje ou uma data anterior." });
+      feedback.erro("Não é possível registrar frequência em data futura.");
+      return;
+    }
     const nomeDisciplina = disciplinasDaTurma.find((d) => String(d.id) === disciplinaId)?.nomeDisciplina ?? "";
     const ausentes = (alunos ?? []).filter((a) => !presencas[a.id]).map((a) => a.nomeAluno);
     if (registroExistente) {
@@ -106,7 +113,9 @@ export function Frequencia() {
       );
       await carregarChamada();
     } catch (erro) {
-      feedback.erro(lerErro(erro, "Não foi possível salvar a chamada.").mensagem);
+      const lido = lerErro(erro, "Não foi possível salvar a chamada.");
+      setErros(lido.campos);
+      feedback.erro(lido.campos.data ? "Não é possível registrar frequência em data futura." : lido.mensagem);
     } finally {
       setSalvando(false);
     }
@@ -144,7 +153,24 @@ export function Frequencia() {
           </div>
           <div className="grupo-filtro">
             <label htmlFor="input-data">Data da aula:</label>
-            <input type="date" id="input-data" value={data} max={hojeISO()} onChange={(e) => setData(e.target.value)} className="select-filtro-custom input-data-custom" />
+            <input
+              type="date"
+              id="input-data"
+              value={data}
+              max={hojeISO()}
+              onChange={(e) => {
+                setData(e.target.value);
+                setErros({});
+              }}
+              {...propsErro("data", erros)}
+              aria-describedby={erros.data ? "erro-data" : "dica-data"}
+              className={`select-filtro-custom input-data-custom ${erros.data ? "campo-invalido" : ""}`}
+            />
+            {erros.data ? (
+              <CampoErro id="erro-data" mensagem={erros.data} />
+            ) : (
+              <span className="dica-campo" id="dica-data">Datas futuras ficam bloqueadas.</span>
+            )}
           </div>
         </div>
 
