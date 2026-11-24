@@ -27,9 +27,7 @@ img {
     .container-avisos,
     .envio-avisos,
     .container-lista-avisos,
-    .box-borda-avisos,
-    .formulario,
-    .container-cadastro {
+    .box-borda-avisos {
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box;

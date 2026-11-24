@@ -18,7 +18,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "json-server": "json-server --watch database/db.json --port 3001"
+    "json-server": "node database/iniciar-db.mjs",
+    "seed": "node database/seed.js"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",

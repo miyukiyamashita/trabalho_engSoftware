@@ -229,7 +229,12 @@ export function Notas() {
                 </thead>
                 <tbody>
                   {visiveis.map((aluno) => {
-                    const final = notaFinal(notas[aluno.id]);
+                    // Valores fora do intervalo não entram na soma enquanto não forem corrigidos.
+                    const final = notaFinal(
+                      Object.fromEntries(
+                        BIMESTRES.map((b) => [b, erros[`${aluno.id}.${b}`] ? "" : notas[aluno.id]?.[b]])
+                      )
+                    );
                     return (
                       <tr key={aluno.id}>
                         <th scope="row" className="celula-dados-aluno">

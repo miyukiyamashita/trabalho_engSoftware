@@ -58,3 +58,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Relatórios gerados (contêm dados de alunos)
 /public/relatorios/
 /storage/
+/database/.estatico-vazio/
