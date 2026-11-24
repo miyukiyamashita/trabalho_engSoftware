@@ -169,3 +169,23 @@
         opacity: 1;
     }
 }
+
+/* Sem estouro horizontal (T31) */
+.container-cadastro {
+    margin-left: 280px;
+    width: calc(100% - 280px);
+    align-items: flex-start;
+}
+
+.container-cadastro .formulario {
+    margin-left: 0;
+    margin-top: 0;
+}
+
+.container-cadastro .linha-formulario {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.container-cadastro .linha-formulario .campo {
+    width: 100% !important;
+}
