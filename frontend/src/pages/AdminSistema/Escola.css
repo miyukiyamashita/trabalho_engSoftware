@@ -93,3 +93,21 @@
     padding: 14px 16px;
   }
 }
+/* Endereço e nomes quebram linha para a coluna Ações ficar visível */
+.tabela-escolas td {
+  white-space: normal;
+}
+
+.tabela-escolas td:last-child {
+  white-space: nowrap;
+}
+
+.tabela-escolas th,
+.tabela-escolas td {
+  padding: 14px 12px;
+}
+
+.tabela-escolas .acoes-tabela {
+  flex-direction: column;
+  align-items: stretch;
+}
