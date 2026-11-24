@@ -18,40 +18,54 @@ Trabalho da disciplina de Modelagem de Sistemas.
 
 ## Instruções para executar
 
-Após clonar o repositório, será necessário baixar algumas dependências antes de rodar o código.
+Requisitos: Node.js 20 ou mais recente.
 
-Certifique-se que esteja na raiz do projeto e dê:
-
-```bash
-cd frontend
-npm install react-icons
-npm install react-select
-```
-
-Depois:
+### 1. Instalar as dependências
 
 ```bash
-cd ..
 cd backend
-npm install nodemailer
-npm install express pdfkit axios cors
-npm install -D @types/nodemailer
+npm install
+cd ../frontend
+npm install
 ```
 
-Para rodar, execute os seguintes comandos na raiz do projeto:
+### 2. Configurar o backend
+
+Copie `backend/.env.example` para `backend/.env` e defina pelo menos `JWT_SECRET` (um texto longo e aleatório).
+Sem `SMTP_USER`/`SMTP_PASS`, o sistema roda em **modo demonstração**: nenhum e-mail é enviado e a senha de cada usuário cadastrado aparece uma única vez para quem fez o cadastro.
+
+### 3. (Opcional) Recriar os dados de demonstração
 
 ```bash
+cd backend
+SEED_PASSWORD=<senha-das-contas-demo> npm run seed
+```
+
+No PowerShell: `$env:SEED_PASSWORD="<senha>"; npm run seed`. Reinicie o json-server depois de rodar a semente.
+
+### 4. Rodar (3 terminais)
+
+```bash
+# Terminal 1 - banco (json-server, porta 3001; acessado só pelo backend)
+cd backend
+npm run json-server
+
+# Terminal 2 - API NestJS (porta 3000)
+cd backend
+npm run start:dev
+
+# Terminal 3 - frontend (porta 5173)
 cd frontend
 npm run dev
 ```
 
-Depois:
+O frontend usa `VITE_API_URL` (padrão `http://localhost:3000`; veja `frontend/.env.example`).
+
+### 5. Testes
+
 ```bash
-cd ..
 cd backend
-npm run json-server
-npm run start:dev
-node server.js
+npm run test:e2e
 ```
 
-Para os 3 últimos comandos, abra 3 terminais diferentes para cada um.
+Material da apresentação e roteiro de avaliação de usabilidade: [docs/apresentacao.md](docs/apresentacao.md).
