@@ -314,3 +314,8 @@
         width: 100%;
     }
 }
+
+/* Campos de busca/data usam o estilo do filtro, sem a seta de lista */
+input.select-filtro-custom {
+    background-image: none;
+}
